@@ -266,6 +266,13 @@ def _require_catalog_only(tables: set[str], provider: str) -> None:
 
         if schema and schema in catalog_schemas:
             continue
+        # PostgreSQL's system catalogs are on the default search_path, so catalog SQL refers to
+        # `pg_constraint` rather than `pg_catalog.pg_constraint`. Requiring the qualification
+        # would reject legitimate schema discovery — and `pg_catalog` is exactly where PK and FK
+        # information has to come from, because information_schema hides constraints from anyone
+        # who does not own the table, which a read-only account never does.
+        if provider == "postgresql" and bare.startswith("pg_"):
+            continue
         if provider == "oracle" and bare.startswith(ORACLE_CATALOG_PREFIXES):
             continue
         if provider == "sqlserver" and bare.startswith("sys"):

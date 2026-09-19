@@ -158,6 +158,23 @@ class TestCatalogOnlyMode:
     def test_oracle_user_views_are_allowed(self):
         check("SELECT table_name FROM user_tables", "oracle", catalog_only=True)
 
+    def test_postgres_system_catalogs_are_allowed_unqualified(self):
+        # pg_catalog is on PostgreSQL's default search_path, so catalog SQL says `pg_constraint`,
+        # not `pg_catalog.pg_constraint`. It also has to: information_schema hides constraints
+        # from anyone who does not own the table, which a read-only account never does, so
+        # primary and foreign keys can only be discovered through these views.
+        check(
+            "SELECT conname FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid",
+            "postgresql",
+            catalog_only=True,
+        )
+
+    def test_a_business_table_is_still_refused_alongside_catalog_ones(self):
+        assert_rejected(
+            "SELECT * FROM pg_class, customers",
+            catalog_only=True,
+        )
+
 
 class TestReferencedTables:
     def test_collects_schema_qualified_names_and_skips_ctes(self):
