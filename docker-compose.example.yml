@@ -1,0 +1,30 @@
+# Qlar DB Wrapper — example compose file.
+#
+# Copy to docker-compose.yml, put your settings in .env next to it, then:
+#
+#   docker compose run --rm wrapper test-db     # check the database
+#   docker compose run --rm wrapper enroll      # register, then approve in the CMS
+#   docker compose up -d                        # run it
+#
+# Note what is missing: there is no `ports:` section. The wrapper only makes outbound
+# connections, so nothing needs to be published.
+
+services:
+  wrapper:
+    image: ghcr.io/pusakaai/db-wrapper:0.1.0
+    container_name: qlar-db-wrapper
+    restart: unless-stopped
+    command: ["run"]
+    env_file: .env
+    volumes:
+      # The wrapper's identity (key pair), its enrolment state and your audit log.
+      # Losing this volume means enrolling and being approved again.
+      - ./state:/state
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
