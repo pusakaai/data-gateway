@@ -24,9 +24,10 @@ RUN python -m venv /venv \
 
 FROM python:3.12-slim
 
-# FreeTDS runtime for SQL Server; libaio for Oracle thin mode's async I/O.
+# FreeTDS runtime for SQL Server. Oracle needs nothing here: python-oracledb runs in thin
+# mode, which is pure Python and requires no Instant Client and no libaio.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libsybdb5 libaio1 ca-certificates \
+    && apt-get install -y --no-install-recommends libsybdb5 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /home/qlar qlar
 
