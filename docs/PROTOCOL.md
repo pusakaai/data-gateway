@@ -97,13 +97,31 @@ inside that window. A clock more than two minutes out is the single most common 
 ### Signing a job
 
 Each job carries its own `signature` field: base64(DER(ECDSA-SHA256(canonical job bytes)))
-made with **Qlar's** private key. The canonical job bytes are the job object with the
-`signature` key removed, serialized as JSON with sorted keys, `,`/`:` separators and no
-ASCII escaping.
+made with **Qlar's** private key.
 
-The wrapper verifies this against the Qlar public key it pinned at enrolment and silently
-discards a job that fails. This is what stops a proxy inside the customer's own network
-from rewriting the SQL on its way in.
+The canonical job bytes are **named fields in a fixed order joined by `\n`** — not
+canonical JSON:
+
+```
+jobId \n type \n protocol \n sql \n maxRows \n issuedAt \n expiresAt \n agentId \n userId \n conversationId
+```
+
+A `null` or absent field contributes an empty string. Timestamps are rendered exactly as
+they appear on the wire (`yyyy-MM-ddTHH:mm:ssZ`, whole seconds).
+
+Two runtimes agreeing on "sorted keys, tight separators, no ASCII escaping" sounds simple
+until a non-ASCII column name, a `/`, or a float turns up and one serializer escapes it
+differently from the other — at which point every job fails verification inside a
+customer's network with nothing in the logs to say why. A field list has no such
+ambiguity, and it is trivial to reimplement in any language.
+
+Everything that changes what the wrapper will *do* is in that list. A field outside it is
+informational only and is not covered by the signature; adding a field that affects
+execution means extending the list, which is a protocol change by definition.
+
+The wrapper verifies the signature against the Qlar public key it pinned at enrolment and
+silently discards a job that fails. This is what stops a proxy inside the customer's own
+network from rewriting the SQL on its way in.
 
 ---
 

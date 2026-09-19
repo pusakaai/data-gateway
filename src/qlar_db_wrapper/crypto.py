@@ -5,9 +5,9 @@ Two directions of trust, both signed:
 * **wrapper -> Qlar** — every request carries a detached signature over a canonical string
   built from the method, path, timestamp, nonce and a hash of the body. Qlar verifies it
   with the public key the wrapper registered at enrolment.
-* **Qlar -> wrapper** — every job carries a signature over its own canonical JSON, made
-  with Qlar's private key. The wrapper verifies it with the pinned Qlar public key it
-  received at enrolment.
+* **Qlar -> wrapper** — every job carries a signature over a canonical string built from
+  its own named fields, made with Qlar's private key. The wrapper verifies it with the
+  pinned Qlar public key it received at enrolment.
 
 Signing the *payload* rather than relying on the TLS channel matters here: on-premise
 deployments routinely sit behind a TLS-terminating proxy, so "it arrived over HTTPS" says
@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import os
 import secrets
 import stat
@@ -168,15 +167,46 @@ def verify(public_key: EllipticCurvePublicKey, message: bytes, signature_b64: st
     return True
 
 
+#: The job fields the signature covers, in the exact order they are joined. Everything that
+#: changes what the wrapper will DO is here; adding such a field is a protocol change.
+SIGNED_JOB_FIELDS = (
+    "jobId",
+    "type",
+    "protocol",
+    "sql",
+    "maxRows",
+    "issuedAt",
+    "expiresAt",
+    "agentId",
+    "userId",
+    "conversationId",
+)
+
+
 def canonical_job_bytes(job: dict[str, Any]) -> bytes:
     """Canonical form of a job for signature verification.
 
-    The `signature` field is excluded (it cannot cover itself) and keys are sorted with
-    tight separators so that both sides serialize identically regardless of the order the
-    JSON happened to arrive in.
+    Named fields in a fixed order joined by newlines — deliberately NOT canonical JSON.
+    Two runtimes agreeing on "sorted keys, tight separators, no ASCII escaping" sounds
+    simple right up until a non-ASCII column name, a `/`, or a float turns up and one
+    serializer escapes it differently from the other. Every job would then fail
+    verification inside a customer's network, with nothing in the logs explaining why. A
+    field list has no such ambiguity.
+
+    Values are used exactly as they arrived on the wire: an absent or null field
+    contributes an empty string, and numbers are rendered as their JSON integer form.
     """
-    payload = {key: value for key, value in job.items() if key != "signature"}
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    parts: list[str] = []
+    for field in SIGNED_JOB_FIELDS:
+        value = job.get(field)
+        if value is None:
+            parts.append("")
+        elif isinstance(value, bool):  # not expected, but must never render as True/False
+            parts.append("1" if value else "0")
+        else:
+            parts.append(str(value))
+
+    return "\n".join(parts).encode("utf-8")
 
 
 def verify_job(qlar_public_key_pem: str, job: dict[str, Any]) -> bool:

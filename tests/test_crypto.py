@@ -91,14 +91,40 @@ class TestJobSignature:
         del job["signature"]
         assert crypto.verify_job(public_pem, job) is False
 
-    def test_key_order_does_not_matter(self, key):
-        # The canonical form sorts keys, so a job that arrives with its fields in a
-        # different order still verifies — otherwise any JSON library change would break
-        # every deployed wrapper.
+    def test_key_order_and_unsigned_extras_do_not_matter(self, key):
+        # The canonical form is a fixed field list, so neither the order the JSON arrived in
+        # nor a field outside that list can change the signature. Both matter: the first
+        # means no JSON library change can break every deployed wrapper, the second means
+        # Qlar can add a purely informational field without a protocol bump.
         public_pem = crypto.public_key_pem(key)
         job = self._signed_job(key)
+
         reordered = json.loads(json.dumps(dict(reversed(list(job.items())))))
         assert crypto.verify_job(public_pem, reordered) is True
+
+        reordered["loadingText"] = "Reading the database..."
+        assert crypto.verify_job(public_pem, reordered) is True
+
+    def test_canonical_form_matches_the_documented_field_list(self):
+        # Pinned against the exact bytes Qlar's C# builds. If either side changes its field
+        # order or its rendering, this fails here rather than in a customer's network.
+        job = {
+            "jobId": "job_1",
+            "type": "execute_query",
+            "protocol": 1,
+            "sql": "SELECT 1",
+            "maxRows": 1000,
+            "issuedAt": "2026-09-19T08:14:02Z",
+            "expiresAt": "2026-09-19T08:15:02Z",
+            "agentId": "agt_1",
+            "userId": None,
+            "conversationId": None,
+            "signature": "ignored",
+        }
+        assert crypto.canonical_job_bytes(job) == (
+            b"job_1\nexecute_query\n1\nSELECT 1\n1000\n"
+            b"2026-09-19T08:14:02Z\n2026-09-19T08:15:02Z\nagt_1\n\n"
+        )
 
 
 class TestFingerprint:
