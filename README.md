@@ -93,7 +93,8 @@ Database
   Password:
 
 Qlar
-  Qlar endpoint [https://plugins.qlar.ai/api/db-wrapper]:
+  (ends in /api/db-wrapper — the CMS wrapper panel shows it)
+  Qlar API endpoint: https://qlar.example.com/api/db-wrapper
 
 Saved to .env (mode 0600). The next start will not ask again.
 

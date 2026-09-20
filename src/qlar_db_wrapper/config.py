@@ -267,7 +267,10 @@ def load_settings(env_file: Path | None = None) -> Settings:
 
     base_url = os.environ.get("QLAR_BASE_URL", "").strip().rstrip("/")
     if not base_url:
-        raise ConfigError("QLAR_BASE_URL is required (e.g. https://plugins.qlar.ai/api/db-wrapper)")
+        raise ConfigError(
+            "QLAR_BASE_URL is required. The Qlar CMS wrapper panel shows it; it ends in "
+            "/api/db-wrapper"
+        )
     if not base_url.startswith("https://") and "localhost" not in base_url and "127.0.0.1" not in base_url:
         raise ConfigError("QLAR_BASE_URL must use https:// outside local testing")
 

@@ -22,7 +22,7 @@ import platform
 from datetime import UTC, datetime
 
 from . import PROTOCOL_VERSION, __version__
-from .client import QlarClient, QlarRejected
+from .client import QlarClient, QlarNotAnEndpoint, QlarRejected
 from .config import EnrollmentState, Settings
 from .crypto import fingerprint, load_or_create_private_key, public_key_pem
 
@@ -73,6 +73,17 @@ def enroll(settings: Settings) -> tuple[EnrollmentState, str]:
 
     try:
         _, body = client.post(ENROLL_PATH, payload, timeout=30.0)
+    except QlarNotAnEndpoint as wrong_address:
+        # Checked before QlarRejected, which it subclasses: a 404 from a static website
+        # used to be reported as a rejected code, which sends someone back to the CMS to
+        # generate fresh codes that fail exactly the same way.
+        raise EnrollmentError(
+            f"{wrong_address}.\n"
+            f"  That is not Qlar's API, so the enrolment code was never seen. QLAR_BASE_URL is\n"
+            f"  currently {settings.base_url} — it must be the API endpoint shown in the CMS\n"
+            "  wrapper panel, which ends in /api/db-wrapper, not the address of the Qlar web\n"
+            "  interface. Fix it in .env, or run: qlar-db-wrapper enroll --init"
+        ) from wrong_address
     except QlarRejected as rejection:
         if rejection.status in (400, 404, 410):
             raise EnrollmentError(

@@ -22,7 +22,7 @@ from typing import Any
 
 from . import PROTOCOL_VERSION, __version__
 from .audit import AuditLog
-from .client import QlarClient, QlarRejected, QlarUnreachable
+from .client import QlarClient, QlarNotAnEndpoint, QlarRejected, QlarUnreachable
 from .config import EnrollmentState, Settings
 from .crypto import load_or_create_private_key, verify_job
 from .executor import execute, test_connection
@@ -100,6 +100,17 @@ class PollLoop:
                 break
             except QlarUnreachable as error:
                 logger.warning("Qlar unreachable (%s); retrying in %.1fs", error, backoff)
+                self._sleep_with_jitter(backoff)
+                backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
+            except QlarNotAnEndpoint as wrong_address:
+                # Retried like any other failure — the address may be a proxy having a bad
+                # day — but named for what it is, because "rejected the poll" every 15
+                # seconds is not a clue anyone can act on.
+                logger.error(
+                    "%s. That is not Qlar's API: check QLAR_BASE_URL (%s), which must end in "
+                    "/api/db-wrapper. Retrying in %.1fs",
+                    wrong_address, self.settings.base_url, backoff,
+                )
                 self._sleep_with_jitter(backoff)
                 backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
             except QlarRejected as rejection:

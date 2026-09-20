@@ -35,7 +35,10 @@ from .config import (
 from .executor import account_can_write, test_connection
 from .providers import default_port
 
-DEFAULT_BASE_URL = "https://plugins.qlar.ai/api/db-wrapper"
+# No default. The endpoint differs per Qlar deployment, the CMS wrapper panel prints the
+# right one, and a plausible-looking guess is worse than a question: it fails at enrolment
+# with a 404 that reads like a rejected code.
+BASE_URL_HINT = "ends in /api/db-wrapper — the CMS wrapper panel shows it"
 
 # Names people actually type, mapped to the four `DB_PROVIDER` values.
 PROVIDER_ALIASES = {
@@ -195,7 +198,8 @@ def _collect_answers() -> dict[str, str]:
 
     print()
     print("Qlar")
-    base_url = _ask("  Qlar endpoint", _current("QLAR_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+    print(f"  ({BASE_URL_HINT})")
+    base_url = _ask("  Qlar API endpoint", _current("QLAR_BASE_URL") or None).rstrip("/")
 
     return {
         "QLAR_BASE_URL": base_url,

@@ -47,6 +47,22 @@ class QlarRejected(Exception):
         self.body = body or {}
 
 
+class QlarNotAnEndpoint(QlarRejected):
+    """Something answered, but it was not Qlar's API.
+
+    A wrong `QLAR_BASE_URL` does not fail like a wrong password: a static site, a CDN, a
+    captive portal or a reverse proxy all answer cheerfully with an HTML error page, and a
+    404 in particular is indistinguishable from a legitimate "no such enrolment code"
+    unless the body is examined. Raised as a subclass so that every existing handler still
+    catches it, while callers that can give better advice may look for it first.
+    """
+
+    def __init__(self, status: int, url: str, content_type: str) -> None:
+        super().__init__(status, f"{url} answered HTTP {status} as {content_type or 'an empty body'}")
+        self.url = url
+        self.content_type = content_type
+
+
 @dataclass
 class QlarClient:
     base_url: str
@@ -95,6 +111,10 @@ class QlarClient:
                 decoded = {"raw": response.text[:500]}
 
         if response.status_code >= 400:
+            if _is_not_our_api(response, decoded):
+                raise QlarNotAnEndpoint(
+                    response.status_code, url, response.headers.get("content-type", "")
+                )
             raise QlarRejected(
                 response.status_code,
                 str(decoded.get("message") or decoded.get("title") or response.reason_phrase),
@@ -102,3 +122,24 @@ class QlarClient:
             )
 
         return response.status_code, decoded
+
+
+def _is_not_our_api(response: httpx.Response, decoded: dict[str, Any]) -> bool:
+    """Decides whether a failing response came from Qlar's API at all.
+
+    Deliberately narrow, because the cost of a false positive is telling someone their URL
+    is wrong when Qlar really did refuse them:
+
+    * **HTML, at any status.** Our API never answers a signed POST with a web page. A
+      static site, a login portal or a proxy error page does.
+    * **A 404 with nothing JSON in it.** Either the path is wrong or the endpoint is not
+      deployed at that host; both are the operator's URL, not their enrolment code.
+
+    Anything else — a JSON 400, an empty 500 — is Qlar answering, and is reported as such.
+    """
+    content_type = response.headers.get("content-type", "").lower()
+    if "html" in content_type:
+        return True
+    if response.status_code == 404 and "json" not in content_type:
+        return True
+    return False

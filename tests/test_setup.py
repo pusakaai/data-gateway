@@ -15,6 +15,8 @@ import pytest
 from qlar_db_wrapper import cli, wizard
 from qlar_db_wrapper.executor import ExecutionResult
 
+ENDPOINT = "https://qlar.example.com/api/db-wrapper"
+
 MANAGED_KEYS = (
     "QLAR_BASE_URL",
     "QLAR_ENROLLMENT_CODE",
@@ -94,7 +96,7 @@ class TestFirstRun:
             "warehouse",  # database name
             "qlar_readonly",  # username
             "s3cret pass",  # password, via getpass
-            "",  # Qlar endpoint: the offered default
+            ENDPOINT,  # Qlar endpoint
         ).install(monkeypatch)
 
         settings, connection_ok = wizard.run_setup(env_file)
@@ -103,7 +105,7 @@ class TestFirstRun:
         assert settings.database.provider == "postgresql"
         assert settings.database.port == 5432
         assert settings.database.password == "s3cret pass"
-        assert settings.base_url == wizard.DEFAULT_BASE_URL
+        assert settings.base_url == ENDPOINT
 
         saved = env_values(env_file)
         assert saved["DB_HOST"] == "db.internal"
@@ -121,7 +123,7 @@ class TestFirstRun:
             "",  # database name, offered as warehouse
             "",  # username, offered as ana
             "",  # password: keep the one from the URL
-            "",  # Qlar endpoint
+            ENDPOINT,  # Qlar endpoint
         ).install(monkeypatch)
 
         settings, _ = wizard.run_setup(env_file)
@@ -137,7 +139,9 @@ class TestFirstRun:
 
     def test_a_bare_host_and_port_is_understood_too(self, tmp_path, monkeypatch):
         env_file = tmp_path / ".env"
-        Console("1", "db.internal:6432", "", "warehouse", "reader", "pw", "").install(monkeypatch)
+        Console("1", "db.internal:6432", "", "warehouse", "reader", "pw", ENDPOINT).install(
+            monkeypatch
+        )
 
         settings, _ = wizard.run_setup(env_file)
 
@@ -182,7 +186,7 @@ class TestAnsweringAgain:
     def test_a_failed_connection_offers_another_attempt(self, tmp_path, monkeypatch):
         env_file = tmp_path / ".env"
         console = Console(
-            "", "db.internal", "", "warehouse", "reader", "pw", "",
+            "", "db.internal", "", "warehouse", "reader", "pw", ENDPOINT,
             "n",  # no, do not enter them again
         ).install(monkeypatch, connection_ok=False)
 
@@ -198,7 +202,7 @@ class TestAnsweringAgain:
     def test_declining_at_the_prompt_can_be_retried(self, tmp_path, monkeypatch):
         env_file = tmp_path / ".env"
         Console(
-            "", "typo.internal", "", "warehouse", "reader", "pw", "",
+            "", "typo.internal", "", "warehouse", "reader", "pw", ENDPOINT,
             "y",  # yes, ask again
             "", "db.internal", "", "warehouse", "reader", "pw", "",
             "n",
@@ -208,6 +212,39 @@ class TestAnsweringAgain:
 
         assert connection_ok is False
         assert settings.database.host == "db.internal"
+
+
+class TestTheQlarEndpoint:
+    """The address of Qlar itself, which is the one answer nobody can guess for you.
+
+    It differs per deployment, and a plausible default is worse than a question: pointed at
+    a Qlar *web* address instead of its API, enrolment fails with a 404 that reads exactly
+    like a rejected enrolment code, and the operator spends the afternoon generating fresh
+    codes that fail the same way.
+    """
+
+    def test_it_is_required_rather_than_defaulted(self, tmp_path, monkeypatch):
+        env_file = tmp_path / ".env"
+        console = Console(
+            "", "db.internal", "", "warehouse", "reader", "pw",
+            "",         # Enter: there is nothing to fall back to, so it asks again
+            ENDPOINT,
+        ).install(monkeypatch)
+
+        settings, _ = wizard.run_setup(env_file)
+
+        assert settings.base_url == ENDPOINT
+        assert console.answers == []
+
+    def test_a_trailing_slash_is_not_carried_into_signed_paths(self, tmp_path, monkeypatch):
+        env_file = tmp_path / ".env"
+        Console("", "db.internal", "", "warehouse", "reader", "pw", ENDPOINT + "/").install(
+            monkeypatch
+        )
+
+        settings, _ = wizard.run_setup(env_file)
+
+        assert settings.base_url == ENDPOINT
 
 
 class TestWithoutATerminal:

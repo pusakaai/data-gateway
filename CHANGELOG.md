@@ -32,6 +32,21 @@ does not change the protocol version.
 - `.env` values may be quoted, and a quoted value now loses exactly one surrounding pair
   rather than every quote character — so a password with a leading space, a `#` or a
   trailing quote survives the round trip.
+- **`QLAR_BASE_URL` no longer has a default.** The endpoint differs per Qlar deployment and
+  the CMS wrapper panel prints the right one, so the setup prompts ask for it instead of
+  offering a guess. `https://plugins.qlar.ai/api/db-wrapper`, which appeared throughout the
+  documentation as though it were known, serves a website and never was an API endpoint.
+
+### Fixed
+
+- **A wrong `QLAR_BASE_URL` is now reported as a wrong URL.** Web servers answer a signed
+  POST cheerfully: a static site returns `405` with an HTML page, a host where the feature
+  is not deployed returns an empty `404`. Enrolment turned the second into "Qlar rejected
+  the enrolment code — generate a fresh one", sending operators back to the CMS for codes
+  that failed identically, and `run` logged the first as `Qlar rejected the poll` every few
+  seconds forever. An HTML body at any status, or a `404` carrying no JSON, is now
+  `QlarNotAnEndpoint` and says which URL answered, what it answered with, and where the
+  right value is written down.
 
 ## [0.1.0] - 2026-09-19
 

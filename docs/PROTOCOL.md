@@ -18,7 +18,8 @@ Two rules shape everything below:
 ## 1. Transport
 
 All calls are `POST`, JSON in and JSON out, to paths under the base URL the operator
-configures as `QLAR_BASE_URL` (for example `https://plugins.qlar.ai/api/db-wrapper`).
+configures as `QLAR_BASE_URL` (the API endpoint, ending in `/api/db-wrapper` — the CMS
+wrapper panel prints the exact value for that deployment).
 
 | Path | Purpose |
 |---|---|
