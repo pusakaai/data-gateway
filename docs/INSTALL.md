@@ -117,8 +117,9 @@ that directory is what makes the identity survive a container replacement. There
 sudo useradd --system --home /opt/qlar-db-wrapper --shell /usr/sbin/nologin qlar
 sudo mkdir -p /opt/qlar-db-wrapper && cd /opt/qlar-db-wrapper
 sudo python3 -m venv venv
-sudo ./venv/bin/pip install "qlar-db-wrapper[postgresql] @ \
+sudo ./venv/bin/pip install --upgrade "qlar-db-wrapper[postgresql] @ \
   https://github.com/pusakaai/db-wrapper/releases/download/v0.1.3/qlar_db_wrapper-0.1.3-py3-none-any.whl"
+sudo ./venv/bin/qlar-db-wrapper version     # should print 0.1.3
 sudo chown -R qlar:qlar /opt/qlar-db-wrapper
 ```
 
@@ -247,6 +248,7 @@ In the CMS the wrapper should show as online within a few seconds of starting.
 | `--init needs a terminal to ask on` | no TTY: `docker run` without `-it`, a systemd unit, CI | add `-it`, or edit `.env` directly |
 | Setup says the connection failed | the details are saved anyway | fix `.env` by hand, or `qlar-db-wrapper run --init` |
 | `the postgresql driver is not installed` | installed without the extra | re-run the pip line above, with the extra in the brackets |
+| pip printed no `Successfully installed` and the version did not change | the pinned version is already installed — pip downloads the wheel and stops, silently | compare `qlar-db-wrapper version` with the version in the URL |
 | `is accessible to group/other` | key file permissions | `chmod 600 wrapper-key.pem` |
 | Queries fail with `table … is not in this wrapper's TABLE_ALLOWLIST` | working as designed | add the table to `TABLE_ALLOWLIST`, or clear it to allow all |
 | `Qlar unreachable` repeatedly | egress firewall or proxy | allow outbound 443 to your Qlar host; the wrapper honours `HTTPS_PROXY` |
