@@ -18,7 +18,6 @@ convenience for a human at a console, never a new requirement for automation.
 
 from __future__ import annotations
 
-import getpass
 import os
 import sys
 from pathlib import Path
@@ -36,6 +35,7 @@ from .config import (
     write_env_values,
 )
 from .executor import account_can_write, test_connection
+from .masked_input import prompt_for_secret
 from .providers import default_port
 
 # No default. The endpoint differs per Qlar deployment, the CMS wrapper panel prints the
@@ -297,11 +297,16 @@ def _ask(question: str, default: str | None = None) -> str:
 
 
 def _ask_secret(question: str, *, keep_label: str | None) -> str | None:
-    """Reads a password without echoing it. Returns None to mean "keep what we had"."""
+    """Reads a password, showing a mask per character. None means "keep what we had".
+
+    Masked rather than invisible: this prompt is met once, by someone pasting a password
+    into an unfamiliar tool, and a terminal that shows no reaction at all is
+    indistinguishable from one that has stopped listening.
+    """
     suffix = f" [{keep_label}]" if keep_label else ""
     while True:
         try:
-            answer = getpass.getpass(f"{question}{suffix}: ")
+            answer = prompt_for_secret(f"{question}{suffix}: ")
         except (EOFError, KeyboardInterrupt):
             print()
             raise SetupAborted("cancelled at the prompt") from None

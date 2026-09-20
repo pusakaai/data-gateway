@@ -11,6 +11,20 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-20
+
+### Changed
+
+- **The password prompt shows a `*` per character.** It echoed nothing, which is the right
+  default for a login someone types every day and the wrong one here: this prompt is met
+  once, by an operator pasting a database password into a tool they installed five minutes
+  ago, and a terminal showing no reaction is indistinguishable from one that has stopped
+  listening. Backspace works, Ctrl-C still cancels, and a terminal that cannot be driven
+  character by character falls back to the old echo-free prompt rather than failing.
+
+  It is a trade: the length of the password is now visible to someone looking at the
+  screen, which `getpass` did not reveal. The smaller risk of the two.
+
 ### Fixed
 
 - **The pip line now says `--upgrade`, and is followed by a version check.** Asked for a
@@ -138,7 +152,8 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.4
 [0.1.3]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.3
 [0.1.2]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.2
 [0.1.1]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.1

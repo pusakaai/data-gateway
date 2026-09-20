@@ -11,7 +11,7 @@
 
 services:
   wrapper:
-    image: ghcr.io/pusakaai/db-wrapper:0.1.3
+    image: ghcr.io/pusakaai/db-wrapper:0.1.4
     container_name: qlar-db-wrapper
     restart: unless-stopped
     command: ["run"]

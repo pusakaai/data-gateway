@@ -61,15 +61,15 @@ of the allowlist.
 Docker (recommended — no Python on the host):
 
 ```bash
-docker pull ghcr.io/pusakaai/db-wrapper:0.1.3
+docker pull ghcr.io/pusakaai/db-wrapper:0.1.4
 ```
 
 Or with pip, installing only the driver you need. The wheel comes from the release rather
 than from PyPI, where this package is not published:
 
 ```bash
-pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.3/qlar_db_wrapper-0.1.3-py3-none-any.whl"
-qlar-db-wrapper version     # should print 0.1.3
+pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.4/qlar_db_wrapper-0.1.4-py3-none-any.whl"
+qlar-db-wrapper version     # should print 0.1.4
 ```
 
 Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
@@ -158,7 +158,7 @@ Docker equivalent:
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.3 run
+  ghcr.io/pusakaai/db-wrapper:0.1.4 run
 ```
 
 Back in the CMS the wrapper shows as online, and you continue with table detection as
