@@ -7,6 +7,13 @@ Five commands, in the order an operator meets them:
     fingerprint  print this wrapper's key fingerprint, to compare with the CMS
     run          the long-running process: poll, execute, answer
     version      what is installed, and which protocol it speaks
+
+`run`, `test-db` and `enroll` need database settings. When those are missing and there is
+a terminal to ask on, the setup prompts in `wizard.py` collect them and write `.env`
+instead of printing a configuration error — so a fresh install is `pip install` then
+`run`, with nothing to read first. `--init` runs those prompts even when `.env` is already
+complete. Without a terminal — a container, a systemd unit — nothing changes: the same
+configuration error as before, on stderr, with the same exit code.
 """
 
 from __future__ import annotations
@@ -22,10 +29,13 @@ from . import PROTOCOL_VERSION, __version__
 from .config import ConfigError, EnrollmentState, Settings, load_settings
 from .crypto import fingerprint, load_or_create_private_key, public_key_pem
 from .enroll import EnrollmentError, enroll
-from .executor import account_can_write, test_connection
 from .poll import PollLoop
+from .wizard import SetupAborted, can_prompt, check_connection, run_setup
 
 DEFAULT_ENV_FILE = ".env"
+
+# The commands that need database settings, and so may offer the setup prompts.
+SETUP_COMMANDS = ("run", "test-db", "enroll")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,9 +54,15 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("run", help="poll Qlar for jobs and execute them (the main process)")
-    subparsers.add_parser("enroll", help="register this wrapper with Qlar using a one-time code")
-    subparsers.add_parser("test-db", help="verify the database settings without contacting Qlar")
+    _with_init_flag(
+        subparsers.add_parser("run", help="poll Qlar for jobs and execute them (the main process)")
+    )
+    _with_init_flag(
+        subparsers.add_parser("enroll", help="register this wrapper with Qlar using a one-time code")
+    )
+    _with_init_flag(
+        subparsers.add_parser("test-db", help="verify the database settings without contacting Qlar")
+    )
     subparsers.add_parser("fingerprint", help="print this wrapper's public key fingerprint")
     subparsers.add_parser("version", help="print version and protocol information")
 
@@ -58,48 +74,79 @@ def main(argv: list[str] | None = None) -> int:
         print(f"protocol {PROTOCOL_VERSION}")
         return 0
 
-    try:
-        settings = load_settings(Path(args.env_file))
-    except ConfigError as error:
-        print(f"configuration error: {error}", file=sys.stderr)
+    settings, connection_ok = _settings_for(args)
+    if settings is None:
         return 2
 
     if args.command == "test-db":
-        return _command_test_db(settings)
+        return _command_test_db(settings, connection_ok)
     if args.command == "fingerprint":
         return _command_fingerprint(settings)
     if args.command == "enroll":
         return _command_enroll(settings)
     if args.command == "run":
-        return _command_run(settings)
+        return _command_run(settings, connection_ok)
 
     return 2
 
 
-def _command_test_db(settings: Settings) -> int:
-    database = settings.database
-    print(f"connecting to {database.provider}://{database.host}/{database.database} ...")
-    result = test_connection(settings.database)
+def _with_init_flag(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--init",
+        "-init",
+        action="store_true",
+        help="ask for the database details again, even when .env is already filled in",
+    )
+    return parser
 
-    if result.status != "ok":
-        error = result.error or {}
-        print(f"FAILED ({error.get('category')}): {error.get('messageText')}", file=sys.stderr)
-        return 1
 
-    version = (result.rows or [[""]])[0][0]
-    print(f"OK in {result.duration_ms} ms")
-    print(f"server: {version}")
+def _settings_for(args: argparse.Namespace) -> tuple[Settings | None, bool | None]:
+    """Loads the settings, running the setup prompts when that is the helpful thing to do.
 
-    # Advisory, never fatal. An operator who deliberately granted more is not blocked, but
-    # nobody should discover months later that the "read-only" wrapper could drop tables.
-    if account_can_write(settings.database) is True:
-        print(
-            "\nWARNING: this database account appears able to modify data.\n"
-            "         The wrapper only ever issues read-only transactions, but a read-only\n"
-            "         account is the guarantee that does not depend on our code being right.",
-            file=sys.stderr,
-        )
-    return 0
+    Returns the settings and whether the database connection has already been tested:
+    True or False when the prompts tested it, None when nothing has been checked yet. That
+    third state is what stops `run` from opening two connections to say the same thing.
+    """
+    env_file = Path(args.env_file)
+
+    if getattr(args, "init", False):
+        if not can_prompt():
+            print(
+                "--init needs a terminal to ask on. Edit .env directly, or run the container "
+                "interactively (docker run -it ... run --init).",
+                file=sys.stderr,
+            )
+            return None, None
+        return _run_setup(env_file)
+
+    try:
+        return load_settings(env_file), None
+    except ConfigError as error:
+        if args.command not in SETUP_COMMANDS or not can_prompt():
+            print(f"configuration error: {error}", file=sys.stderr)
+            return None, None
+
+        # First run, most likely: no .env at all, or one that was never filled in. Ask
+        # rather than explain, since everything the explanation would say is a question.
+        print(f"This wrapper is not configured yet ({error}).")
+        return _run_setup(env_file)
+
+
+def _run_setup(env_file: Path) -> tuple[Settings | None, bool | None]:
+    try:
+        return run_setup(env_file)
+    except SetupAborted as error:
+        print(f"setup cancelled: {error}", file=sys.stderr)
+        return None, None
+
+
+def _command_test_db(settings: Settings, connection_ok: bool | None) -> int:
+    # The check itself lives with the setup prompts: it is the same paragraph of output
+    # there and here, and an operator comparing the two should not have to wonder whether
+    # they mean the same thing.
+    if connection_ok is None:
+        connection_ok = check_connection(settings)
+    return 0 if connection_ok else 1
 
 
 def _command_fingerprint(settings: Settings) -> int:
@@ -128,7 +175,20 @@ def _command_enroll(settings: Settings) -> int:
     return 0
 
 
-def _command_run(settings: Settings) -> int:
+def _command_run(settings: Settings, connection_ok: bool | None) -> int:
+    # Before anything else: does this actually reach the database? A wrapper that polls
+    # happily while every query fails looks healthy in the CMS, and that is the most
+    # confusing way for an installation to be broken.
+    if connection_ok is None:
+        connection_ok = check_connection(settings)
+    if not connection_ok:
+        print(
+            "Starting anyway — the database may simply be down at this moment, and the wrapper\n"
+            "reports its state to Qlar on every poll. Use `qlar-db-wrapper run --init` to\n"
+            "re-enter the connection details.",
+            file=sys.stderr,
+        )
+
     state = EnrollmentState.load(settings.state_file)
     if state is None:
         print(

@@ -15,8 +15,17 @@ __all__ = [
     "CATEGORY_TIMEOUT",
     "DriverError",
     "Provider",
+    "default_port",
     "get_provider",
 ]
+
+# Module per provider, so one name is enough to reach either the class or its constants.
+_PROVIDER_MODULES = {
+    "postgresql": "postgres",
+    "mysql": "mysql",
+    "sqlserver": "sqlserver",
+    "oracle": "oracle",
+}
 
 
 def get_provider(name: str) -> Provider:
@@ -41,6 +50,22 @@ def get_provider(name: str) -> Provider:
         return _ensure_driver(OracleProvider(), "oracledb", "oracle")
 
     raise ValueError(f"unsupported provider {name!r}")
+
+
+def default_port(name: str) -> int | None:
+    """The port this provider uses when `DB_PORT` is not set, or None for an unknown name.
+
+    Deliberately does not go through `get_provider`: the setup prompts offer a port default
+    before anyone has installed a driver, and a missing driver must not stop them at the
+    second question.
+    """
+    key = (name or "").strip().lower()
+    if key not in _PROVIDER_MODULES:
+        return None
+
+    from importlib import import_module
+
+    return import_module(f".{_PROVIDER_MODULES[key]}", __name__).DEFAULT_PORT
 
 
 def _ensure_driver(provider: Provider, package: str, extra: str) -> Provider:
