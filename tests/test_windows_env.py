@@ -115,3 +115,49 @@ class TestWritingOverAnUnreadableFile:
         text = env_file.read_text(encoding="utf-8")
         assert "# mine" in text
         assert "DB_HOST=new.internal" in text
+
+
+class TestSayingWhatWasRead:
+    """Being asked for something already written down is infuriating without a reason.
+
+    An operator echoed QLAR_BASE_URL into `.env`, ran the wrapper, and was asked for the
+    Qlar endpoint anyway. The wrapper was right — it had not read the file — but nothing on
+    screen said so, and the three causes (wrong directory, unreadable encoding, not a
+    setting) look identical from the outside.
+    """
+
+    def test_it_names_the_keys_it_understood(self, tmp_path):
+        from qlar_db_wrapper.wizard import _describe_existing
+
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            f"# a comment\nQLAR_BASE_URL={BASE_URL}\nDB_PASSWORD=hunter2\n", encoding="utf-8"
+        )
+
+        described = _describe_existing(env_file)
+
+        assert "QLAR_BASE_URL" in described
+        assert "DB_PASSWORD" in described
+        # Names, never values: one of those keys is a database password.
+        assert "hunter2" not in described
+
+    def test_it_says_when_there_is_no_file(self, tmp_path):
+        from qlar_db_wrapper.wizard import _describe_existing
+
+        assert "No file there yet" in _describe_existing(tmp_path / ".env")
+
+    def test_it_repeats_the_encoding_complaint(self, tmp_path):
+        from qlar_db_wrapper.wizard import _describe_existing
+
+        env_file = tmp_path / ".env"
+        env_file.write_bytes(f"QLAR_BASE_URL={BASE_URL}\n".encode("utf-16"))
+
+        assert "UTF-16" in _describe_existing(env_file)
+
+    def test_a_file_with_nothing_in_it_says_so(self, tmp_path):
+        from qlar_db_wrapper.wizard import _describe_existing
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("# only comments here\n\n", encoding="utf-8")
+
+        assert "no settings in it" in _describe_existing(env_file)
