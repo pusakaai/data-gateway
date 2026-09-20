@@ -320,3 +320,98 @@ class TestTheInitFlag:
 
         assert cli.main(["--env-file", str(env_file), "test-db"]) == 0
         assert "OK in 7 ms" in capsys.readouterr().out
+
+
+class TestTheEnrolmentCode:
+    """The one answer the prompts used to leave out, and the one most often mistyped.
+
+    It travels from a web page, through a clipboard, into a file, via whatever shell the
+    operator happens to have — and on cmd.exe `echo 'KEY=value' >> .env` writes the quotes
+    into the file, so the wrapper reports the code as unset while it is visibly there.
+    Asking for it removes every step in that chain except the clipboard.
+    """
+
+    def _configured(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    f"QLAR_BASE_URL={ENDPOINT}",
+                    "DB_PROVIDER=postgresql",
+                    "DB_HOST=db.internal",
+                    "DB_PORT=5432",
+                    "DB_NAME=warehouse",
+                    "DB_USER=qlar_readonly",
+                    "DB_PASSWORD=secret",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return env_file
+
+    def test_it_is_asked_for_when_missing(self, tmp_path, monkeypatch):
+        env_file = self._configured(tmp_path)
+        Console("3gsl-d4gd-v7yy").install(monkeypatch)
+
+        seen = {}
+
+        def fake_enroll(settings):
+            seen["code"] = settings.enrollment_code
+            raise cli.EnrollmentError("stopping here; the code is what this test is about")
+
+        monkeypatch.setattr(cli, "enroll", fake_enroll)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(["--env-file", str(env_file), "enroll"])
+
+        # Upper-cased on the way through: the CMS generates from an upper-case alphabet,
+        # and a lower-case paste would otherwise fail the hash comparison server-side.
+        assert seen["code"] == "3GSL-D4GD-V7YY"
+
+    def test_quotes_from_a_pasted_shell_snippet_are_stripped(self, tmp_path, monkeypatch):
+        env_file = self._configured(tmp_path)
+        Console("'3GSL-D4GD-V7YY'").install(monkeypatch)
+
+        seen = {}
+
+        def fake_enroll(settings):
+            seen["code"] = settings.enrollment_code
+            raise cli.EnrollmentError("stop")
+
+        monkeypatch.setattr(cli, "enroll", fake_enroll)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(["--env-file", str(env_file), "enroll"])
+
+        assert seen["code"] == "3GSL-D4GD-V7YY"
+
+    def test_a_configured_code_is_not_questioned(self, tmp_path, monkeypatch):
+        env_file = self._configured(tmp_path)
+        with env_file.open("a", encoding="utf-8") as handle:
+            handle.write("QLAR_ENROLLMENT_CODE=ALREADY-SET-HERE\n")
+
+        def refuse(_prompt: str = "") -> str:
+            raise AssertionError("a code that is already configured must not be asked for")
+
+        monkeypatch.setattr("builtins.input", refuse)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        seen = {}
+
+        def fake_enroll(settings):
+            seen["code"] = settings.enrollment_code
+            raise cli.EnrollmentError("stop")
+
+        monkeypatch.setattr(cli, "enroll", fake_enroll)
+
+        cli.main(["--env-file", str(env_file), "enroll"])
+
+        assert seen["code"] == "ALREADY-SET-HERE"
+
+    def test_without_a_terminal_the_old_error_stands(self, tmp_path, monkeypatch, capsys):
+        env_file = self._configured(tmp_path)
+        monkeypatch.setattr(cli, "can_prompt", lambda: False)
+
+        assert cli.main(["--env-file", str(env_file), "enroll"]) == 1
+        assert "QLAR_ENROLLMENT_CODE is not set" in capsys.readouterr().err

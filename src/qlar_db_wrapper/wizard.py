@@ -30,6 +30,7 @@ from .config import (
     Settings,
     load_dotenv,
     load_settings,
+    unquote_env_value,
     write_env_values,
 )
 from .executor import account_can_write, test_connection
@@ -81,13 +82,20 @@ def run_setup(env_file: Path) -> tuple[Settings, bool]:
     """
     # Whatever is already configured becomes the default answer, so re-running `--init`
     # to change one field is a row of Enter presses and one new value.
-    load_dotenv(env_file)
+    try:
+        load_dotenv(env_file)
+    except ConfigError as error:
+        # An unreadable file has nothing to offer as defaults, but it is not a reason to
+        # refuse to set the wrapper up - that is exactly what the operator is here for.
+        print(f"Ignoring the existing file: {error}", file=sys.stderr)
 
     _banner(env_file)
 
     while True:
         answers = _collect_answers()
-        write_env_values(env_file, answers)
+        backup = write_env_values(env_file, answers)
+        if backup is not None:
+            print(f"\nThe previous {env_file} could not be read; it is kept as {backup}.")
 
         # The file is for the *next* start; this process is already past the point where
         # it read the environment, so the answers go into it directly.
@@ -120,6 +128,31 @@ def run_setup(env_file: Path) -> tuple[Settings, bool]:
             file=sys.stderr,
         )
         return settings, False
+
+
+def ask_enrollment_code() -> str:
+    """Asks for the one-time code, rather than sending the operator back to edit a file.
+
+    This is the one answer the setup prompts used to leave out, and it is the one most
+    likely to be got wrong: it arrives by copy and paste from a web page, into a file, on a
+    machine whose shell may not quote the way the instructions assumed. A prompt has no
+    shell in it at all.
+
+    Not written to `.env`. The code is single-use and spent the moment enrolment succeeds,
+    so keeping it would leave a dead credential on disk and one more thing to explain.
+    """
+    print()
+    print("The one-time enrolment code is shown in the Qlar CMS:")
+    print("  your agent → Plugins → SQL Database Reader → Connect via wrapper")
+    print("It expires 15 minutes after it is generated, and works once.")
+
+    while True:
+        answer = _ask("  Enrolment code")
+        # Forgiving about how it arrived: pasted with the quotes from a shell snippet, in
+        # lower case, or with stray spaces. The alphabet the CMS generates is upper case.
+        code = unquote_env_value(answer.strip()).strip().upper()
+        if code:
+            return code
 
 
 def check_connection(settings: Settings) -> bool:
