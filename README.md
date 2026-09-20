@@ -52,7 +52,7 @@ of the allowlist.
 ## Requirements
 
 - Python 3.11+, or Docker
-- Outbound HTTPS (443) to your Qlar endpoint
+- Outbound HTTPS (443) to your Qlar endpoint, and to github.com once, to fetch the release
 - A database account with `SELECT` on the tables you want reachable
 - A Qlar CMS user who can add a SQL Database Reader plugin
 
@@ -64,11 +64,14 @@ Docker (recommended — no Python on the host):
 docker pull ghcr.io/pusakaai/db-wrapper:0.1.1
 ```
 
-Or with pip, installing only the driver you need:
+Or with pip, installing only the driver you need. The wheel comes from the release rather
+than from PyPI, where this package is not published:
 
 ```bash
-pip install "qlar-db-wrapper[postgresql]"     # or [mysql] / [sqlserver] / [oracle] / [all]
+pip install "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.1/qlar_db_wrapper-0.1.1-py3-none-any.whl"
 ```
+
+Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
 
 ## Setup, start to finish
 
