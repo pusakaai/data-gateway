@@ -158,7 +158,7 @@ class PollLoop:
 
         if int(job.get("protocol", PROTOCOL_VERSION)) > PROTOCOL_VERSION:
             logger.error(
-                "job %s needs protocol %s but this wrapper speaks %d — upgrade the wrapper",
+                "job %s needs protocol %s but this wrapper speaks %d - upgrade the wrapper",
                 job.get("jobId"), job.get("protocol"), PROTOCOL_VERSION,
             )
             self._send_result(

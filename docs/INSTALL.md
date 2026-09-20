@@ -83,7 +83,7 @@ state volume, which the image already owns:
 ```bash
 chown -R 10001:10001 state     # the uid the image runs as
 docker run --rm -it -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.5 --env-file /state/.env test-db --init
+  ghcr.io/pusakaai/db-wrapper:0.1.6 --env-file /state/.env test-db --init
 ```
 
 That writes `state/.env`, which every later command then names the same way
@@ -92,7 +92,7 @@ Either way, enrol next:
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.5 enroll
+  ghcr.io/pusakaai/db-wrapper:0.1.6 enroll
 ```
 
 `enroll` prints a fingerprint. Approve it in the Qlar CMS, then start the service:
@@ -100,7 +100,7 @@ docker run --rm --env-file .env -v "$PWD/state:/state" \
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.5 run
+  ghcr.io/pusakaai/db-wrapper:0.1.6 run
 ```
 
 The image defaults `WRAPPER_KEY_FILE` and `WRAPPER_STATE_FILE` into `/state`, so mounting
@@ -118,8 +118,8 @@ sudo useradd --system --home /opt/qlar-db-wrapper --shell /usr/sbin/nologin qlar
 sudo mkdir -p /opt/qlar-db-wrapper && cd /opt/qlar-db-wrapper
 sudo python3 -m venv venv
 sudo ./venv/bin/pip install --upgrade "qlar-db-wrapper[postgresql] @ \
-  https://github.com/pusakaai/db-wrapper/releases/download/v0.1.5/qlar_db_wrapper-0.1.5-py3-none-any.whl"
-sudo ./venv/bin/qlar-db-wrapper version     # should print 0.1.5
+  https://github.com/pusakaai/db-wrapper/releases/download/v0.1.6/qlar_db_wrapper-0.1.6-py3-none-any.whl"
+sudo ./venv/bin/qlar-db-wrapper version     # should print 0.1.6
 sudo chown -R qlar:qlar /opt/qlar-db-wrapper
 ```
 
@@ -190,7 +190,7 @@ spec:
     spec:
       containers:
         - name: wrapper
-          image: ghcr.io/pusakaai/db-wrapper:0.1.5
+          image: ghcr.io/pusakaai/db-wrapper:0.1.6
           args: ["run"]
           envFrom:
             - secretRef: { name: qlar-db-wrapper-env }

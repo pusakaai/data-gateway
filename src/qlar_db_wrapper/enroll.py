@@ -80,7 +80,7 @@ def enroll(settings: Settings) -> tuple[EnrollmentState, str]:
         raise EnrollmentError(
             f"{wrong_address}.\n"
             f"  That is not Qlar's API, so the enrolment code was never seen. QLAR_BASE_URL is\n"
-            f"  currently {settings.base_url} — it must be the API endpoint shown in the CMS\n"
+            f"  currently {settings.base_url} - it must be the API endpoint shown in the CMS\n"
             "  wrapper panel, which ends in /api/db-wrapper, not the address of the Qlar web\n"
             "  interface. Fix it in .env, or run: qlar-db-wrapper enroll --init"
         ) from wrong_address
@@ -88,7 +88,7 @@ def enroll(settings: Settings) -> tuple[EnrollmentState, str]:
         if rejection.status in (400, 404, 410):
             raise EnrollmentError(
                 "Qlar rejected the enrolment code. Codes are single-use and expire after "
-                "15 minutes — generate a fresh one in the CMS and try again."
+                "15 minutes - generate a fresh one in the CMS and try again."
             ) from rejection
         raise EnrollmentError(f"enrolment failed: {rejection}") from rejection
 

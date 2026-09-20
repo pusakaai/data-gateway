@@ -144,7 +144,7 @@ class TestSayingWhatWasRead:
     def test_it_says_when_there_is_no_file(self, tmp_path):
         from qlar_db_wrapper.wizard import _describe_existing
 
-        assert "No file there yet" in _describe_existing(tmp_path / ".env")
+        assert "no file there yet" in _describe_existing(tmp_path / ".env")
 
     def test_it_repeats_the_encoding_complaint(self, tmp_path):
         from qlar_db_wrapper.wizard import _describe_existing

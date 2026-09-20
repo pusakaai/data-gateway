@@ -26,7 +26,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from . import PROTOCOL_VERSION, __version__
+from . import PROTOCOL_VERSION, __version__, console
 from .config import (
     ConfigError,
     EnrollmentState,
@@ -88,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("version", help="print version and protocol information")
 
     args = parser.parse_args(argv)
+    console.make_output_safe()
     _configure_logging(args.log_level)
 
     if args.command == "version":
@@ -154,14 +155,16 @@ def _settings_for(args: argparse.Namespace) -> tuple[Settings | None, bool | Non
             return None, None
 
         # First run, most likely: no .env at all, or one that was never filled in. Ask
-        # rather than explain, since everything the explanation would say is a question.
-        print(f"This wrapper is not configured yet ({error}).")
-        return _run_setup(env_file, ask_endpoint=not base_url)
+        # rather than explain, since everything the explanation would say is a question -
+        # but carry the reason into the form, where it answers "why am I being asked?".
+        return _run_setup(env_file, ask_endpoint=not base_url, reason=str(error))
 
 
-def _run_setup(env_file: Path, *, ask_endpoint: bool = True) -> tuple[Settings | None, bool | None]:
+def _run_setup(
+    env_file: Path, *, ask_endpoint: bool = True, reason: str = ""
+) -> tuple[Settings | None, bool | None]:
     try:
-        return run_setup(env_file, ask_endpoint=ask_endpoint)
+        return run_setup(env_file, ask_endpoint=ask_endpoint, reason=reason)
     except SetupAborted as error:
         print(f"setup cancelled: {error}", file=sys.stderr)
         return None, None
@@ -172,7 +175,7 @@ def _command_test_db(settings: Settings, connection_ok: bool | None) -> int:
     # there and here, and an operator comparing the two should not have to wonder whether
     # they mean the same thing.
     if connection_ok is None:
-        connection_ok = check_connection(settings)
+        connection_ok = check_connection(settings, prominent=True)
     return 0 if connection_ok else 1
 
 
@@ -208,14 +211,18 @@ def _command_enroll(settings: Settings, env_file: Path, code: str | None = None)
         print(f"enrolment failed: {error}", file=sys.stderr)
         return 1
 
-    print(f"enrolled as {state.wrapper_id}")
-    print(f"state written to {settings.state_file}")
+    console.banner("Enrolled. One thing left: approve this wrapper in the Qlar CMS.")
+    console.field("wrapper id", state.wrapper_id)
+    console.field("state file", settings.state_file)
     print()
-    print("Fingerprint of this wrapper's key:")
-    print(f"  {key_fingerprint}")
+    console.heading("KEY FINGERPRINT -- compare with the one the CMS shows")
     print()
-    print("Open the Qlar CMS, check that the fingerprint shown there matches the line above,")
-    print("and approve this wrapper. Then start it with:  qlar-db-wrapper run")
+    console.fingerprint_block(key_fingerprint)
+    print()
+    console.step(1, "CMS -> your agent -> Plugins -> SQL Database Reader")
+    console.step(2, "check the fingerprint matches, then click Approve")
+    console.step(3, "come back here and run:   qlar-db-wrapper run")
+    print()
     return 0
 
 
@@ -252,18 +259,8 @@ def _env_file_has(env_file: Path, key: str) -> bool:
 
 
 def _command_run(settings: Settings, connection_ok: bool | None) -> int:
-    # Before anything else: does this actually reach the database? A wrapper that polls
-    # happily while every query fails looks healthy in the CMS, and that is the most
-    # confusing way for an installation to be broken.
-    if connection_ok is None:
-        connection_ok = check_connection(settings)
-    if not connection_ok:
-        print(
-            "Starting anyway — the database may simply be down at this moment, and the wrapper\n"
-            "reports its state to Qlar on every poll. Use `qlar-db-wrapper run --init` to\n"
-            "re-enter the connection details.",
-            file=sys.stderr,
-        )
+    console.banner(f"Qlar DB Wrapper {__version__}")
+    console.field("endpoint", settings.base_url)
 
     state = EnrollmentState.load(settings.state_file)
     if state is None:
@@ -273,6 +270,22 @@ def _command_run(settings: Settings, connection_ok: bool | None) -> int:
         )
         return 2
 
+    console.field("wrapper id", state.wrapper_id)
+
+    # Then the database. A wrapper that polls happily while every query fails looks healthy
+    # in the CMS, and that is the most confusing way for an installation to be broken.
+    if connection_ok is None:
+        connection_ok = check_connection(settings)
+    if not connection_ok:
+        console.warning(
+            "Starting anyway",
+            "The database may simply be down at this moment, and the wrapper reports its",
+            "state to Qlar on every poll, so the CMS shows the data source as unreachable.",
+            "",
+            "Run `qlar-db-wrapper run --init` to re-enter the connection details.",
+            file=sys.stderr,
+        )
+
     if state.base_url != settings.base_url:
         print(
             f"QLAR_BASE_URL ({settings.base_url}) does not match the URL this wrapper enrolled "
@@ -280,6 +293,10 @@ def _command_run(settings: Settings, connection_ok: bool | None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    print()
+    print("  Polling for work. Ctrl-C stops it; jobs already running finish first.")
+    print()
 
     loop = PollLoop(settings, state)
 
@@ -295,10 +312,18 @@ def _command_run(settings: Settings, connection_ok: bool | None) -> int:
 
 
 def _configure_logging(level: str) -> None:
+    resolved = getattr(logging, level.upper(), logging.INFO)
     logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
+        level=resolved,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
     )
+
+    # httpx logs every request at INFO, which put "POST .../enroll 200 OK" in the middle of
+    # the one screen an operator reads carefully. Their own logs are wanted when someone is
+    # debugging and noise otherwise, so they follow LOG_LEVEL down to DEBUG and no further.
+    if resolved > logging.DEBUG:
+        for library in ("httpx", "httpcore"):
+            logging.getLogger(library).setLevel(logging.WARNING)
 
 
 if __name__ == "__main__":  # pragma: no cover

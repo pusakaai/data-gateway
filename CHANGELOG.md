@@ -11,6 +11,46 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-20
+
+Everything an operator reads on screen, rewritten around a screenshot of someone who had
+just enrolled successfully and could not tell what to do next.
+
+### Changed
+
+- **The enrolment result says what to do.** A ruled heading, the wrapper id and state file
+  in columns, and three numbered steps. The fingerprint - the one check standing between a
+  stolen enrolment code and someone's database - is printed as four blocks of eight bytes
+  over two lines, in the shape a card number is printed in and for the same reason: 95
+  unbroken characters is a fingerprint nobody actually compares.
+- **`run` opens with a block, not a log stream**: endpoint, wrapper id, database,
+  connection, server version, then one line saying it is polling.
+- **The setup form is numbered and aligned.** `1/7` through `7/7`, so an operator filling
+  it in knows how much is left, and one column for every answer, so what they typed can be
+  read back down the page. A default too long for its column moves to a `current` line
+  above rather than pushing the colon out of line - truncating it would hide the
+  difference between a prod host and a dev one.
+- **The connection test is the loudest thing on the setup screen**, under its own rule,
+  with `[ OK ]` or `[FAIL]` at the start of the line.
+- **The over-privileged-account warning is its own block**, with the SQL to create a
+  read-only role. Set in the same shape as the success it follows, it read as more success.
+- **Colour**, when the terminal has it: green for a good result, yellow for a warning, red
+  for a failure, bold for the fingerprint. Off when `NO_COLOR` is set, when `TERM=dumb`,
+  and when output is not a terminal. On Windows the console is asked to interpret escape
+  codes and colour is dropped if it will not.
+
+### Fixed
+
+- **`enroll` could crash on a Windows console.** The prompt telling an operator where to
+  find their enrolment code contained an arrow, which cp1252 cannot encode; cp437 cannot
+  encode an em dash either, and several messages had one. Every string that may be printed
+  is ASCII now, a test enforces it, and `stdout`/`stderr` are set to replace rather than
+  raise so the next stray character cannot stop the process.
+- **`httpx` no longer logs a request line into the middle of the enrolment result.**
+  Third-party loggers follow `LOG_LEVEL` down to DEBUG and are quiet above it.
+- A failed connection check prints its whole block to stderr. Half on each stream
+  interleaved into nonsense as soon as one was redirected.
+
 ## [0.1.5] - 2026-09-20
 
 ### Added
@@ -167,7 +207,8 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.6
 [0.1.5]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.5
 [0.1.4]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.4
 [0.1.3]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.3
