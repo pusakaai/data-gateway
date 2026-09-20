@@ -5,7 +5,7 @@ and a signature over a canonical string built from all of it plus a hash of the 
 
 One subtlety worth stating, because getting it wrong produces signature failures that are
 miserable to debug: **the signed path is the endpoint path relative to the configured base
-URL** (`/jobs/poll`), not the absolute path of the request (`/api/db-wrapper/jobs/poll`).
+URL** (`/jobs/poll`), not the absolute path of the request (`/api/data-gateway/jobs/poll`).
 Qlar sits behind an API gateway that may rewrite the prefix, and a signature that broke
 because of a gateway rule would look, from inside the customer's network, exactly like a
 wrong key.
@@ -23,11 +23,11 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
 
 from . import PROTOCOL_VERSION
 from .crypto import (
+    GATEWAY_ID_HEADER,
     NONCE_HEADER,
     PROTOCOL_HEADER,
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
-    WRAPPER_ID_HEADER,
     canonical_request,
     new_nonce,
     sign,
@@ -67,7 +67,7 @@ class QlarNotAnEndpoint(QlarRejected):
 class QlarClient:
     base_url: str
     private_key: EllipticCurvePrivateKey
-    wrapper_id: str | None
+    gateway_id: str | None
     verify_tls: bool = True
 
     def post(
@@ -77,7 +77,7 @@ class QlarClient:
 
         Raises QlarUnreachable for transport failures and QlarRejected for 4xx/5xx, so a
         caller can tell "the network is down" from "Qlar says no" — they need very
-        different handling, and only one of them should stop the wrapper.
+        different handling, and only one of them should stop the gateway.
         """
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         timestamp = str(int(time.time()))
@@ -91,8 +91,8 @@ class QlarClient:
             NONCE_HEADER: nonce,
             SIGNATURE_HEADER: sign(self.private_key, message),
         }
-        if self.wrapper_id:
-            headers[WRAPPER_ID_HEADER] = self.wrapper_id
+        if self.gateway_id:
+            headers[GATEWAY_ID_HEADER] = self.gateway_id
 
         url = f"{self.base_url.rstrip('/')}{path}"
 

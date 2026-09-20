@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import sqlglot
 
-from qlar_db_wrapper.guard import SqlRejected, check, referenced_tables
+from qlar_data_gateway.guard import SqlRejected, check, referenced_tables
 
 
 def assert_rejected(sql: str, provider: str = "postgresql", **kwargs) -> str:

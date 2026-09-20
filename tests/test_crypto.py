@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from qlar_db_wrapper import crypto
+from qlar_data_gateway import crypto
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ class TestJobSignature:
     def test_key_order_and_unsigned_extras_do_not_matter(self, key):
         # The canonical form is a fixed field list, so neither the order the JSON arrived in
         # nor a field outside that list can change the signature. Both matter: the first
-        # means no JSON library change can break every deployed wrapper, the second means
+        # means no JSON library change can break every deployed gateway, the second means
         # Qlar can add a purely informational field without a protocol bump.
         public_pem = crypto.public_key_pem(key)
         job = self._signed_job(key)
@@ -145,7 +145,7 @@ class TestFingerprint:
 
 class TestKeyFile:
     def test_is_created_once_and_reused(self, tmp_path):
-        path = tmp_path / "wrapper-key.pem"
+        path = tmp_path / "gateway-key.pem"
 
         first, created = crypto.load_or_create_private_key(path)
         assert created is True
@@ -153,7 +153,7 @@ class TestKeyFile:
         second, created_again = crypto.load_or_create_private_key(path)
         assert created_again is False
         # Identity must survive a restart: a new key would mean a new fingerprint and a
-        # wrapper that silently needs re-approval.
+        # gateway that silently needs re-approval.
         assert crypto.public_key_pem(first) == crypto.public_key_pem(second)
 
     def test_is_written_with_owner_only_permissions(self, tmp_path):
@@ -163,7 +163,7 @@ class TestKeyFile:
         if os.name == "nt":
             pytest.skip("POSIX permission bits are not meaningful on Windows")
 
-        path = tmp_path / "wrapper-key.pem"
+        path = tmp_path / "gateway-key.pem"
         crypto.load_or_create_private_key(path)
         mode = path.stat().st_mode
         assert not mode & (stat.S_IRWXG | stat.S_IRWXO)

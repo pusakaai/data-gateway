@@ -1,4 +1,4 @@
-# Qlar DB Wrapper
+# Qlar Data Gateway
 #
 # Two stages so the runtime image carries no compilers and no build caches. The result is
 # a process that makes outbound HTTPS calls and nothing else — note the deliberate absence
@@ -38,8 +38,8 @@ ENV PATH="/venv/bin:$PATH" \
     # Identity and enrolment state live on a mounted volume: without this, replacing the
     # container would generate a new key pair, change the fingerprint, and silently require
     # the operator to enrol and be approved all over again.
-    WRAPPER_KEY_FILE=/state/wrapper-key.pem \
-    WRAPPER_STATE_FILE=/state/wrapper-state.json \
+    GATEWAY_KEY_FILE=/state/gateway-key.pem \
+    GATEWAY_STATE_FILE=/state/gateway-state.json \
     AUDIT_LOG_FILE=/state/audit/queries.jsonl
 
 RUN mkdir -p /state && chown -R qlar:qlar /state
@@ -49,5 +49,5 @@ USER qlar
 WORKDIR /home/qlar
 
 # No EXPOSE, no port published, no inbound listener. That is the product.
-ENTRYPOINT ["qlar-db-wrapper"]
+ENTRYPOINT ["qlar-gateway"]
 CMD ["run"]

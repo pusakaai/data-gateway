@@ -1,4 +1,4 @@
-"""How the wrapper talks to the person standing in front of it.
+"""How the gateway talks to the person standing in front of it.
 
 Everything here exists because of one screenshot: enrolment had succeeded, and the operator
 could not tell what to do next. The fingerprint they were meant to compare was ninety-five
@@ -41,7 +41,7 @@ def make_output_safe() -> None:
 
     A Windows console runs on whichever code page it inherited: cp1252 has no arrow, cp437
     has neither arrow nor em dash, and Python's default is to raise UnicodeEncodeError
-    rather than approximate. A wrapper that dies while printing a success message is a bad
+    rather than approximate. A gateway that dies while printing a success message is a bad
     joke, and it happened here - the enrolment-code prompt had an arrow in it.
 
     Everything printed is ASCII for that reason, and a test keeps it that way. This is the

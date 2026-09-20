@@ -1,6 +1,6 @@
 """The customer's own record of every query Qlar ran.
 
-This is not a debugging log. For many organisations it is the actual reason the wrapper
+This is not a debugging log. For many organisations it is the actual reason the gateway
 exists: "no open database port" usually also means "we want to see, in our own systems,
 every statement that touched our data". The file is theirs, it never leaves the premises,
 and nothing in the protocol can turn it off.
@@ -70,7 +70,7 @@ class AuditLog:
                 with self.path.open("a", encoding="utf-8") as handle:
                     handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:  # noqa: S110 - deliberate best-effort cleanup
-            # A full disk or a permissions mistake must not stop the wrapper answering
+            # A full disk or a permissions mistake must not stop the gateway answering
             # queries; the operator sees it in the process log instead.
             pass
 

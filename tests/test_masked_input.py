@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from qlar_db_wrapper.masked_input import read_masked
+from qlar_data_gateway.masked_input import read_masked
 
 
 class Keyboard:
@@ -155,7 +155,7 @@ class TestChoosingHowToRead:
     def test_it_uses_the_reader_it_was_given(self, monkeypatch):
         from contextlib import contextmanager
 
-        from qlar_db_wrapper import masked_input
+        from qlar_data_gateway import masked_input
 
         keys = list("hunter2\r")
 
@@ -168,7 +168,7 @@ class TestChoosingHowToRead:
         assert masked_input.prompt_for_secret("Password: ") == "hunter2"
 
     def test_no_reader_means_the_ordinary_echo_free_prompt(self, monkeypatch):
-        from qlar_db_wrapper import masked_input
+        from qlar_data_gateway import masked_input
 
         monkeypatch.setattr(masked_input, "_reader_for_this_terminal", lambda: None)
         monkeypatch.setattr(masked_input.getpass, "getpass", lambda prompt: "from getpass")
@@ -176,7 +176,7 @@ class TestChoosingHowToRead:
         assert masked_input.prompt_for_secret("Password: ") == "from getpass"
 
     def test_a_terminal_that_cannot_be_driven_falls_back_rather_than_failing(self, monkeypatch):
-        from qlar_db_wrapper import masked_input
+        from qlar_data_gateway import masked_input
 
         def explode():
             raise OSError("this terminal does not do that")
@@ -189,7 +189,7 @@ class TestChoosingHowToRead:
     def test_cancelling_is_never_swallowed_by_the_fallback(self, monkeypatch):
         from contextlib import contextmanager
 
-        from qlar_db_wrapper import masked_input
+        from qlar_data_gateway import masked_input
 
         @contextmanager
         def interrupting_reader():
@@ -221,9 +221,9 @@ class TestEverythingPrintedIsAscii:
         import ast
         from pathlib import Path
 
-        import qlar_db_wrapper
+        import qlar_data_gateway
 
-        package = Path(qlar_db_wrapper.__file__).parent
+        package = Path(qlar_data_gateway.__file__).parent
         offenders: list[str] = []
 
         for source in sorted(package.rglob("*.py")):
@@ -250,7 +250,7 @@ class TestEverythingPrintedIsAscii:
     def test_the_guard_survives_a_stream_that_cannot_be_reconfigured(self, monkeypatch):
         import io
 
-        from qlar_db_wrapper import console
+        from qlar_data_gateway import console
 
         monkeypatch.setattr(console.sys, "stdout", io.StringIO())
         console.make_output_safe()  # a StringIO has no reconfigure; this must not raise

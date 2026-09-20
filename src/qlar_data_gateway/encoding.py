@@ -126,7 +126,7 @@ def encode_rows(
 
     The caller asks for one row beyond the ceiling it actually wants, exactly as the
     direct path does, so that "there was more data" can be reported rather than silently
-    truncating. The byte ceiling is the new constraint the wrapper introduces: on the
+    truncating. The byte ceiling is the new constraint the gateway introduces: on the
     direct path the result never crossed the public internet, and a single wide `SELECT *`
     could otherwise try to push hundreds of megabytes through Qlar.
     """

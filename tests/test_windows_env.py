@@ -2,7 +2,7 @@
 
 Every case here came from one operator, in one sitting, following the instructions the CMS
 printed. None of them is exotic: the instructions were POSIX shell, the machine was not,
-and the wrapper's answer was "QLAR_ENROLLMENT_CODE is not set" about a file that plainly
+and the gateway's answer was "QLAR_ENROLLMENT_CODE is not set" about a file that plainly
 contained `QLAR_ENROLLMENT_CODE`.
 
 A config file that silently ignores what it was told is worse than one that refuses to
@@ -16,9 +16,9 @@ import os
 
 import pytest
 
-from qlar_db_wrapper.config import ConfigError, load_dotenv, read_env_text, write_env_values
+from qlar_data_gateway.config import ConfigError, load_dotenv, read_env_text, write_env_values
 
-BASE_URL = "https://qlar.example.com/api/db-wrapper"
+BASE_URL = "https://qlar.example.com/api/data-gateway"
 
 
 @pytest.fixture(autouse=True)
@@ -120,14 +120,14 @@ class TestWritingOverAnUnreadableFile:
 class TestSayingWhatWasRead:
     """Being asked for something already written down is infuriating without a reason.
 
-    An operator echoed QLAR_BASE_URL into `.env`, ran the wrapper, and was asked for the
-    Qlar endpoint anyway. The wrapper was right — it had not read the file — but nothing on
+    An operator echoed QLAR_BASE_URL into `.env`, ran the gateway, and was asked for the
+    Qlar endpoint anyway. The gateway was right — it had not read the file — but nothing on
     screen said so, and the three causes (wrong directory, unreadable encoding, not a
     setting) look identical from the outside.
     """
 
     def test_it_names_the_keys_it_understood(self, tmp_path):
-        from qlar_db_wrapper.wizard import _describe_existing
+        from qlar_data_gateway.wizard import _describe_existing
 
         env_file = tmp_path / ".env"
         env_file.write_text(
@@ -142,12 +142,12 @@ class TestSayingWhatWasRead:
         assert "hunter2" not in described
 
     def test_it_says_when_there_is_no_file(self, tmp_path):
-        from qlar_db_wrapper.wizard import _describe_existing
+        from qlar_data_gateway.wizard import _describe_existing
 
         assert "no file there yet" in _describe_existing(tmp_path / ".env")
 
     def test_it_repeats_the_encoding_complaint(self, tmp_path):
-        from qlar_db_wrapper.wizard import _describe_existing
+        from qlar_data_gateway.wizard import _describe_existing
 
         env_file = tmp_path / ".env"
         env_file.write_bytes(f"QLAR_BASE_URL={BASE_URL}\n".encode("utf-16"))
@@ -155,7 +155,7 @@ class TestSayingWhatWasRead:
         assert "UTF-16" in _describe_existing(env_file)
 
     def test_a_file_with_nothing_in_it_says_so(self, tmp_path):
-        from qlar_db_wrapper.wizard import _describe_existing
+        from qlar_data_gateway.wizard import _describe_existing
 
         env_file = tmp_path / ".env"
         env_file.write_text("# only comments here\n\n", encoding="utf-8")

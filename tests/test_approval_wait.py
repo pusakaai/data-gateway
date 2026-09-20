@@ -1,6 +1,6 @@
 """The wait between enrolling and being approved.
 
-That wait is the normal state of every new wrapper, and it used to be indistinguishable from a
+That wait is the normal state of every new gateway, and it used to be indistinguishable from a
 failure: `pending_approval` fell through to the generic rejection branch, so the operator saw
 `Qlar rejected the poll: HTTP 403: Forbidden` every few seconds with the word "approval"
 nowhere on screen. People read that as broken, killed the process, and then had to be told to
@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from qlar_db_wrapper.client import QlarRejected
-from qlar_db_wrapper.config import DatabaseSettings, EnrollmentState, Settings
-from qlar_db_wrapper.poll import (
+from qlar_data_gateway.client import QlarRejected
+from qlar_data_gateway.config import DatabaseSettings, EnrollmentState, Settings
+from qlar_data_gateway.poll import (
     APPROVAL_POLL_SECONDS,
     MAX_BACKOFF_SECONDS,
     AwaitingApproval,
@@ -34,11 +34,11 @@ def _rejection(reason: str, status: int = 403) -> QlarRejected:
 
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
-        base_url="https://qlar.test/api/db-wrapper",
-        wrapper_name="test wrapper",
+        base_url="https://qlar.test/api/data-gateway",
+        gateway_name="test gateway",
         enrollment_code=None,
-        key_file=tmp_path / "wrapper-key.pem",
-        state_file=tmp_path / "wrapper-state.json",
+        key_file=tmp_path / "gateway-key.pem",
+        state_file=tmp_path / "gateway-state.json",
         audit_log_file=None,
         poll_timeout_seconds=25,
         max_concurrent_queries=1,
@@ -56,10 +56,10 @@ def _settings(tmp_path: Path) -> Settings:
 
 def _state() -> EnrollmentState:
     return EnrollmentState(
-        wrapper_id="wrapper-1",
+        gateway_id="gateway-1",
         qlar_public_key_pem="-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
         enrolled_at="2026-09-20T00:00:00Z",
-        base_url="https://qlar.test/api/db-wrapper",
+        base_url="https://qlar.test/api/data-gateway",
     )
 
 
@@ -136,7 +136,7 @@ def test_approval_is_announced_when_the_polling_starts_working(
 
 
 def test_revoked_still_stops_the_loop(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    # The one refusal that is fatal must stay fatal: a revoked wrapper has to stop working.
+    # The one refusal that is fatal must stay fatal: a revoked gateway has to stop working.
     scripted = _ScriptedLoop(tmp_path, [Revoked(), None])
 
     with caplog.at_level(logging.INFO):

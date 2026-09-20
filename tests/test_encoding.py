@@ -13,7 +13,7 @@ import decimal
 import json
 import uuid
 
-from qlar_db_wrapper.encoding import (
+from qlar_data_gateway.encoding import (
     BINARY_PREFIX,
     MAX_EXACT_INT,
     TruncationReason,

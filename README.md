@@ -1,4 +1,4 @@
-# Qlar DB Wrapper
+# Qlar Data Gateway
 
 Let Qlar answer questions about your database **without opening a database port to the
 internet, and without giving Qlar your database password.**
@@ -11,14 +11,14 @@ your database, and sends the rows back. Nothing connects *in*.
    your network                                  internet
  ┌───────────────────────────────┐
  │  ┌───────────┐   ┌─────────┐  │   outbound HTTPS only
- │  │ database  │◄──│ wrapper │──┼──────────────────────────►  Qlar
+ │  │ database  │◄──│ gateway │──┼──────────────────────────►  Qlar
  │  └───────────┘   └─────────┘  │   "any work for me?"
  │   credentials stay here       │   "here are the rows"
  └───────────────────────────────┘
         no inbound firewall rule, no public DNS, no certificate
 ```
 
-| | Direct connection | With this wrapper |
+| | Direct connection | With this gateway |
 |---|---|---|
 | Database port exposed to the internet | yes | **no** |
 | Inbound firewall rule needed | yes | **no** |
@@ -28,7 +28,7 @@ your database, and sends the rows back. Nothing connects *in*.
 
 ## What it will and will not run
 
-The wrapper assumes Qlar could be compromised and checks every statement itself:
+The gateway assumes Qlar could be compromised and checks every statement itself:
 
 - **Reads only.** Exactly one `SELECT`/`WITH` per job, parsed with a real SQL parser rather
   than pattern-matched, so comments and string literals cannot hide a second statement.
@@ -41,10 +41,10 @@ The wrapper assumes Qlar could be compromised and checks every statement itself:
   it, in a file that never leaves your premises.
 
 Point it at a read-only database account anyway. That is the guarantee that does not
-depend on our code being right — and `qlar-db-wrapper test-db` warns you if the account
+depend on our code being right — and `qlar-gateway test-db` warns you if the account
 looks able to write.
 
-**What it does not do:** the wrapper closes the network exposure and the
+**What it does not do:** the gateway closes the network exposure and the
 credential-storage gap. It does not stop query *results* flowing to Qlar and into an AI
 model — that is what the feature is for. If some columns must never leave, leave them out
 of the allowlist.
@@ -61,15 +61,15 @@ of the allowlist.
 Docker (recommended — no Python on the host):
 
 ```bash
-docker pull ghcr.io/pusakaai/db-wrapper:0.1.7
+docker pull ghcr.io/pusakaai/data-gateway:0.2.0
 ```
 
 Or with pip, installing only the driver you need. The wheel comes from the release rather
 than from PyPI, where this package is not published:
 
 ```bash
-pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.7/qlar_db_wrapper-0.1.7-py3-none-any.whl"
-qlar-db-wrapper version     # should print 0.1.7
+pip install --upgrade "qlar-data-gateway[postgresql] @ https://github.com/pusakaai/data-gateway/releases/download/v0.2.0/qlar_data_gateway-0.2.0-py3-none-any.whl"
+qlar-gateway version     # should print 0.2.0
 ```
 
 Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
@@ -85,12 +85,12 @@ version does print one.
 answers with a real query before it goes any further:
 
 ```bash
-qlar-db-wrapper enroll
+qlar-gateway enroll
 ```
 
 ```
 ========================================================================
- Qlar DB Wrapper — setup
+ Qlar Data Gateway — setup
 ========================================================================
 Database
   1) postgresql  2) mysql  3) sqlserver  4) oracle
@@ -102,8 +102,8 @@ Database
   Password:
 
 Qlar
-  (ends in /api/db-wrapper — the CMS wrapper panel shows it)
-  Qlar API endpoint: https://qlar.example.com/api/db-wrapper
+  (ends in /api/data-gateway — the CMS gateway panel shows it)
+  Qlar API endpoint: https://qlar.example.com/api/data-gateway
 
 Saved to .env (mode 0600). The next start will not ask again.
 
@@ -111,7 +111,7 @@ Testing the database connection: postgresql://qlar_readonly@db.internal:5432/war
   OK in 34 ms
   server: PostgreSQL 16.4 on x86_64-pc-linux-gnu
 
-not enrolled yet (no wrapper-state.json). Run: qlar-db-wrapper enroll
+not enrolled yet (no gateway-state.json). Run: qlar-gateway enroll
 ```
 
 The database half is now done and proved; the last line is step 2. Paste a whole
@@ -119,27 +119,27 @@ connection URL at the host question if you have one —
 `postgresql://user:pass@db.internal:5432/warehouse` — and the remaining answers are filled
 in from it for you to confirm.
 
-The answers are written to `.env`, so this happens exactly once; `qlar-db-wrapper run
+The answers are written to `.env`, so this happens exactly once; `qlar-gateway run
 --init` asks again, for the day the password rotates or the database moves. Prefer to
 write the file yourself? Copy `.env.example` to `.env` and fill it in — then no question is
 ever asked. And nothing changes for automation: without a terminal to ask on, a missing
 setting is the same configuration error on stderr it has always been.
 
 **2. Get a one-time enrolment code.** In the Qlar CMS: your agent → Plugins → SQL Database
-Reader → *Connect via wrapper*. Put it in `.env` as `QLAR_ENROLLMENT_CODE` (it expires in
+Reader → *Connect via gateway*. Put it in `.env` as `QLAR_ENROLLMENT_CODE` (it expires in
 15 minutes and works once).
 
 **3. Enrol.** The CMS panel prints this line with both values already in it. This
-generates your key pair — the private key is written to `wrapper-key.pem` with mode `0600`
+generates your key pair — the private key is written to `gateway-key.pem` with mode `0600`
 and never leaves the machine.
 
 ```bash
-qlar-db-wrapper enroll --base-url https://your-qlar-host/api/db-wrapper --code K7P4-9WQX-2MTD
+qlar-gateway enroll --base-url https://your-qlar-host/api/data-gateway --code K7P4-9WQX-2MTD
 ```
 
 Neither value contains a space, so that line is the same in bash, cmd and PowerShell. The
 endpoint is saved to `.env` for later starts; the code is not, because it is spent. Leave
-either one out and you are asked for it instead — `qlar-db-wrapper enroll` on its own still
+either one out and you are asked for it instead — `qlar-gateway enroll` on its own still
 works.
 
 It prints a fingerprint, and then keeps running:
@@ -155,35 +155,35 @@ the CMS shows and click Approve; this starts working on its own, nothing else to
 Check it matches the line above, character for character, then click **Approve**. This step
 is what makes a stolen enrolment code useless on its own.
 
-There is no step 5. Within a few seconds of the click the wrapper says `approved. Serving
+There is no step 5. Within a few seconds of the click the gateway says `approved. Serving
 queries for ...` and starts answering. Every start re-checks the database first, so one that
 cannot reach it says so on line one rather than looking healthy and failing every query.
 
 Docker, which needs the fingerprint out of the logs because the container is detached:
 
 ```bash
-docker run -d --name qlar-db-wrapper --restart unless-stopped \
+docker run -d --name qlar-gateway --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.7 enroll
+  ghcr.io/pusakaai/data-gateway:0.2.0 enroll
 
-docker logs -f qlar-db-wrapper   # read the fingerprint, approve, watch it connect
+docker logs -f qlar-gateway   # read the fingerprint, approve, watch it connect
 ```
 
-Stopping `docker logs` does not stop the wrapper. Running that same `docker run` line again
+Stopping `docker logs` does not stop the gateway. Running that same `docker run` line again
 after a restart re-uses the existing enrolment rather than trying to redeem a spent code.
 
-Back in the CMS the wrapper shows as online, and you continue with table detection as
+Back in the CMS the gateway shows as online, and you continue with table detection as
 normal. Full walkthrough including systemd and Kubernetes: [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `qlar-db-wrapper test-db` | verify the database settings without contacting Qlar |
-| `qlar-db-wrapper enroll` | register with Qlar and serve — the only command most people need |
-| `qlar-db-wrapper fingerprint` | print the key fingerprint to compare with the CMS |
-| `qlar-db-wrapper run` | serve, for a machine that is already enrolled |
-| `qlar-db-wrapper version` | release version and protocol version |
+| `qlar-gateway test-db` | verify the database settings without contacting Qlar |
+| `qlar-gateway enroll` | register with Qlar and serve — the only command most people need |
+| `qlar-gateway fingerprint` | print the key fingerprint to compare with the CMS |
+| `qlar-gateway run` | serve, for a machine that is already enrolled |
+| `qlar-gateway version` | release version and protocol version |
 
 `run`, `test-db` and `enroll` take `--init`, which asks for the database details again and
 rewrites `.env` even when it is already complete.
@@ -199,7 +199,7 @@ the questions entirely.
 |---|---|---|
 | `QLAR_BASE_URL` | — | your Qlar endpoint (required) |
 | `QLAR_ENROLLMENT_CODE` | — | one-time code, only needed for `enroll` |
-| `QLAR_WRAPPER_NAME` | hostname | label shown in the CMS |
+| `QLAR_GATEWAY_NAME` | hostname | label shown in the CMS |
 | `DB_PROVIDER` | — | `postgresql`, `mysql`, `sqlserver`, `oracle` |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | — | connection details |
 | `DB_OPT_*` | — | extra driver options, e.g. `DB_OPT_SSLMODE=verify-full` |
@@ -209,18 +209,19 @@ the questions entirely.
 | `TABLE_ALLOWLIST` | empty | comma-separated; when set, nothing else is readable |
 | `AUDIT_LOG_FILE` | `./audit/queries.jsonl` | local audit log; empty disables it |
 | `POLL_TIMEOUT_SECONDS` | `25` | long-poll hold time |
-| `WRAPPER_KEY_FILE` | `./wrapper-key.pem` | private key location |
-| `WRAPPER_STATE_FILE` | `./wrapper-state.json` | wrapper id + pinned Qlar public key |
+| `GATEWAY_KEY_FILE` | `./gateway-key.pem` | private key location |
+| `GATEWAY_STATE_FILE` | `./gateway-state.json` | gateway id + pinned Qlar public key |
 
 ## Operating notes
 
 - **Restarting Qlar does not disconnect you.** There is no session to lose; the poll simply
   fails and is retried with backoff. Enrolment and approval live server-side.
-- **Back up `wrapper-key.pem`.** Losing it changes your fingerprint, which means enrolling
+- **Back up `gateway-key.pem`.** Losing it changes your fingerprint, which means enrolling
   and getting approved again.
-- **Revoking** in the CMS takes effect on the wrapper's next poll, which then exits.
+- **Revoking** in the CMS takes effect on the gateway's next poll, which then exits.
 - **Upgrades** are yours to schedule. The protocol version is separate from the release
-  version, and Qlar keeps accepting protocol 1.
+  version. Qlar keeps accepting published protocol versions; protocol 1, which predates the
+  gateway name, is the one exception and is refused with a message saying to upgrade.
 
 ## Documentation
 

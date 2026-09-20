@@ -12,20 +12,20 @@ from pathlib import Path
 
 import pytest
 
-from qlar_db_wrapper import cli
-from qlar_db_wrapper.config import DatabaseSettings, EnrollmentState, Settings
-from qlar_db_wrapper.enroll import EnrollmentError
+from qlar_data_gateway import cli
+from qlar_data_gateway.config import DatabaseSettings, EnrollmentState, Settings
+from qlar_data_gateway.enroll import EnrollmentError
 
-BASE_URL = "https://qlar.test/api/db-wrapper"
+BASE_URL = "https://qlar.test/api/data-gateway"
 
 
 def _settings(tmp_path: Path, code: str | None = "ABCD-EFGH-JKLM") -> Settings:
     return Settings(
         base_url=BASE_URL,
-        wrapper_name="test wrapper",
+        gateway_name="test gateway",
         enrollment_code=code,
-        key_file=tmp_path / "wrapper-key.pem",
-        state_file=tmp_path / "wrapper-state.json",
+        key_file=tmp_path / "gateway-key.pem",
+        state_file=tmp_path / "gateway-state.json",
         audit_log_file=None,
         poll_timeout_seconds=25,
         max_concurrent_queries=1,
@@ -43,12 +43,12 @@ def _settings(tmp_path: Path, code: str | None = "ABCD-EFGH-JKLM") -> Settings:
 
 def _write_state(tmp_path: Path, base_url: str = BASE_URL) -> EnrollmentState:
     state = EnrollmentState(
-        wrapper_id="wrapper-1",
+        gateway_id="gateway-1",
         qlar_public_key_pem="-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
         enrolled_at="2026-09-20T00:00:00Z",
         base_url=base_url,
     )
-    state.save(tmp_path / "wrapper-state.json")
+    state.save(tmp_path / "gateway-state.json")
     return state
 
 
@@ -69,7 +69,7 @@ def test_enrolling_flows_straight_into_serving(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, served: list[EnrollmentState]
 ) -> None:
     enrolled = EnrollmentState(
-        wrapper_id="wrapper-new",
+        gateway_id="gateway-new",
         qlar_public_key_pem="-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
         enrolled_at="2026-09-20T00:00:00Z",
         base_url=BASE_URL,
@@ -80,7 +80,7 @@ def test_enrolling_flows_straight_into_serving(
 
     assert exit_code == 0
     # The point of the change: no second command stands between enrolling and working.
-    assert [state.wrapper_id for state in served] == ["wrapper-new"]
+    assert [state.gateway_id for state in served] == ["gateway-new"]
 
 
 def test_an_already_enrolled_machine_skips_enrolment_and_serves(
@@ -93,22 +93,22 @@ def test_an_already_enrolled_machine_skips_enrolment_and_serves(
 
     monkeypatch.setattr(cli, "enroll", must_not_enrol)
 
-    # This is a container restart, and an operator restarting a wrapper that died: the code was
+    # This is a container restart, and an operator restarting a gateway that died: the code was
     # single use and is long gone, so re-enrolling is not merely wasteful but impossible.
     exit_code = cli._command_enroll(_settings(tmp_path, code=None), tmp_path / ".env", connection_ok=True)
 
     assert exit_code == 0
-    assert [state.wrapper_id for state in served] == ["wrapper-1"]
+    assert [state.gateway_id for state in served] == ["gateway-1"]
 
 
 def test_state_for_a_different_endpoint_is_not_reused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, served: list[EnrollmentState]
 ) -> None:
     # Pointed at a different Qlar: that enrolment says nothing about this one, so it enrols.
-    _write_state(tmp_path, base_url="https://other.test/api/db-wrapper")
+    _write_state(tmp_path, base_url="https://other.test/api/data-gateway")
 
     enrolled = EnrollmentState(
-        wrapper_id="wrapper-new",
+        gateway_id="gateway-new",
         qlar_public_key_pem="-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
         enrolled_at="2026-09-20T00:00:00Z",
         base_url=BASE_URL,
@@ -116,7 +116,7 @@ def test_state_for_a_different_endpoint_is_not_reused(
     monkeypatch.setattr(cli, "enroll", lambda _s: (enrolled, "AA:BB:CC"))
 
     assert cli._command_enroll(_settings(tmp_path), tmp_path / ".env", connection_ok=True) == 0
-    assert [state.wrapper_id for state in served] == ["wrapper-new"]
+    assert [state.gateway_id for state in served] == ["gateway-new"]
 
 
 def test_a_failed_enrolment_does_not_start_serving(

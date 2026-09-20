@@ -52,4 +52,4 @@ jobs:
           python -m build
 
       - name: Build Docker image
-        run: docker build -t qlar-db-wrapper:ci .
+        run: docker build -t qlar-gateway:ci .

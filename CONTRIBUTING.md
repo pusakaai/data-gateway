@@ -1,19 +1,19 @@
 # Contributing
 
-Thanks for looking. This wrapper runs inside other people's networks, next to their
+Thanks for looking. This gateway runs inside other people's networks, next to their
 production databases, so the bar for changes here is deliberately higher than for a
 typical utility.
 
 ## Ground rules
 
-1. **The wrapper does not trust Qlar.** Any change that makes the wrapper rely on Qlar
+1. **The gateway does not trust Qlar.** Any change that makes the gateway rely on Qlar
    having validated something will be declined. The guard, the read-only transaction and
    the allowlist exist precisely because the customer should not have to take Qlar's word
    for anything.
 2. **Dependencies are a cost someone else pays.** Every package added here has to be
    accepted by a security review in a company you will never meet. The runtime depends on
    three libraries plus one database driver; adding a fourth needs a good argument.
-3. **The protocol is a contract with software we cannot upgrade.** Wrappers live on
+3. **The protocol is a contract with software we cannot upgrade.** Gateways live on
    customer hardware and are updated on their schedule, not ours. Adding an optional field
    is fine; changing the meaning of an existing one is a protocol version bump.
 4. **Comments explain why, not what.** The interesting part of this codebase is the
@@ -23,8 +23,8 @@ typical utility.
 ## Getting set up
 
 ```bash
-git clone https://github.com/pusakaai/db-wrapper.git
-cd db-wrapper
+git clone https://github.com/pusakaai/data-gateway.git
+cd db-gateway
 python -m venv .venv && . .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e ".[dev,all]"
 pytest
@@ -53,7 +53,7 @@ queries gets switched off, and a guard that is switched off protects nobody.
 
 ## Adding a database provider
 
-Implement the `Provider` protocol in `src/qlar_db_wrapper/providers/base.py` — connect,
+Implement the `Provider` protocol in `src/qlar_data_gateway/providers/base.py` — connect,
 begin a read-only transaction with a timeout, classify a driver error, and name a column
 type — then register it in `providers/__init__.py`, add the extra to `pyproject.toml`, and
 add the dialect and catalog schemas to `guard.py`.

@@ -1,8 +1,8 @@
-# Qlar DB Wrapper — example compose file.
+# Qlar Data Gateway — example compose file.
 #
 # Copy to docker-compose.yml, put your settings in .env next to it, then:
 #
-#   docker compose run --rm wrapper test-db   # optional: check the database first
+#   docker compose run --rm gateway test-db   # optional: check the database first
 #   docker compose up -d                      # enrol and serve
 #   docker compose logs -f                    # read the fingerprint, then approve in the CMS
 #
@@ -10,18 +10,18 @@
 # machine is not enrolled yet, and otherwise goes straight to serving. That makes a restart
 # safe - an enrolment code is single use, and re-running this never tries to redeem one.
 #
-# Note what is missing: there is no `ports:` section. The wrapper only makes outbound
+# Note what is missing: there is no `ports:` section. The gateway only makes outbound
 # connections, so nothing needs to be published.
 
 services:
-  wrapper:
-    image: ghcr.io/pusakaai/db-wrapper:0.1.7
-    container_name: qlar-db-wrapper
+  gateway:
+    image: ghcr.io/pusakaai/data-gateway:0.2.0
+    container_name: qlar-gateway
     restart: unless-stopped
     command: ["enroll"]
     env_file: .env
     volumes:
-      # The wrapper's identity (key pair), its enrolment state and your audit log.
+      # The gateway's identity (key pair), its enrolment state and your audit log.
       # Losing this volume means enrolling and being approved again.
       - ./state:/state
     security_opt:

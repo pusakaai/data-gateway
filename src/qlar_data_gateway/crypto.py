@@ -2,11 +2,11 @@
 
 Two directions of trust, both signed:
 
-* **wrapper -> Qlar** — every request carries a detached signature over a canonical string
+* **gateway -> Qlar** — every request carries a detached signature over a canonical string
   built from the method, path, timestamp, nonce and a hash of the body. Qlar verifies it
-  with the public key the wrapper registered at enrolment.
-* **Qlar -> wrapper** — every job carries a signature over a canonical string built from
-  its own named fields, made with Qlar's private key. The wrapper verifies it with the
+  with the public key the gateway registered at enrolment.
+* **Qlar -> gateway** — every job carries a signature over a canonical string built from
+  its own named fields, made with Qlar's private key. The gateway verifies it with the
   pinned Qlar public key it received at enrolment.
 
 Signing the *payload* rather than relying on the TLS channel matters here: on-premise
@@ -36,7 +36,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
 
 SIGNATURE_HEADER = "X-Qlar-Signature"
-WRAPPER_ID_HEADER = "X-Qlar-Wrapper-Id"
+GATEWAY_ID_HEADER = "X-Qlar-Gateway-Id"
 TIMESTAMP_HEADER = "X-Qlar-Timestamp"
 NONCE_HEADER = "X-Qlar-Nonce"
 PROTOCOL_HEADER = "X-Qlar-Protocol"
@@ -52,10 +52,10 @@ def generate_private_key() -> EllipticCurvePrivateKey:
 
 
 def load_or_create_private_key(path: Path) -> tuple[EllipticCurvePrivateKey, bool]:
-    """Loads the wrapper's private key, generating and persisting one on first run.
+    """Loads the gateway's private key, generating and persisting one on first run.
 
     Returns the key and whether it was newly created. The key is written with mode 0600 —
-    it is the wrapper's identity, and anyone who can read it can impersonate this
+    it is the gateway's identity, and anyone who can read it can impersonate this
     installation to Qlar.
     """
     if path.exists():
@@ -118,7 +118,7 @@ def fingerprint(public_key_pem_text: str) -> str:
     """SHA-256 over the DER SubjectPublicKeyInfo, as grouped uppercase hex.
 
     This is the string a human compares: it is shown in the Qlar CMS when approving a
-    wrapper, and printed on-premise by `qlar-db-wrapper fingerprint`. Grouping in pairs
+    gateway, and printed on-premise by `qlar-gateway fingerprint`. Grouping in pairs
     makes reading it aloud or matching it by eye far less error-prone than 64 unbroken
     characters.
     """
@@ -146,7 +146,7 @@ def canonical_request(method: str, path: str, timestamp: str, nonce: str, body: 
     Newline-separated and field-ordered so that neither side has to agree on a JSON
     serializer. `path` is the request path only (no scheme or host): a customer's reverse
     proxy may rewrite the host, and a signature that broke because of that would be
-    impossible to diagnose from the wrapper's side.
+    impossible to diagnose from the gateway's side.
     """
     parts = [method.upper(), path, timestamp, nonce, body_hash(body)]
     return "\n".join(parts).encode("utf-8")
@@ -168,7 +168,7 @@ def verify(public_key: EllipticCurvePublicKey, message: bytes, signature_b64: st
 
 
 #: The job fields the signature covers, in the exact order they are joined. Everything that
-#: changes what the wrapper will DO is here; adding such a field is a protocol change.
+#: changes what the gateway will DO is here; adding such a field is a protocol change.
 SIGNED_JOB_FIELDS = (
     "jobId",
     "type",

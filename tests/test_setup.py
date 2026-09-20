@@ -2,8 +2,8 @@
 
 Two things are being protected here. The first is the happy path an operator meets once:
 answer six questions, get a working `.env`, see the connection proved. The second is that
-automation never meets it at all — a container has no terminal, and a wrapper that stops
-to ask a question nobody can see would look exactly like a wrapper that has hung.
+automation never meets it at all — a container has no terminal, and a gateway that stops
+to ask a question nobody can see would look exactly like a gateway that has hung.
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from qlar_db_wrapper import cli, wizard
-from qlar_db_wrapper.executor import ExecutionResult
+from qlar_data_gateway import cli, wizard
+from qlar_data_gateway.executor import ExecutionResult
 
-ENDPOINT = "https://qlar.example.com/api/db-wrapper"
+ENDPOINT = "https://qlar.example.com/api/data-gateway"
 
 MANAGED_KEYS = (
     "QLAR_BASE_URL",
     "QLAR_ENROLLMENT_CODE",
-    "QLAR_WRAPPER_NAME",
+    "QLAR_GATEWAY_NAME",
     "DB_PROVIDER",
     "DB_HOST",
     "DB_PORT",
@@ -75,7 +75,7 @@ def _connection(ok: bool):
 
 
 def env_values(env_file: Path) -> dict[str, str]:
-    from qlar_db_wrapper.config import unquote_env_value
+    from qlar_data_gateway.config import unquote_env_value
 
     values = {}
     for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -156,7 +156,7 @@ class TestAnsweringAgain:
             "\n".join(
                 [
                     "# hand-written, keep me",
-                    "QLAR_BASE_URL=https://qlar.example.com/api/db-wrapper",
+                    "QLAR_BASE_URL=https://qlar.example.com/api/data-gateway",
                     "DB_PROVIDER=postgresql",
                     "DB_HOST=old.internal",
                     "DB_PORT=5432",
@@ -177,7 +177,7 @@ class TestAnsweringAgain:
 
         assert settings.database.host == "new.internal"
         assert settings.database.password == "old-secret"
-        assert settings.base_url == "https://qlar.example.com/api/db-wrapper"
+        assert settings.base_url == "https://qlar.example.com/api/data-gateway"
 
         text = env_file.read_text(encoding="utf-8")
         assert "# hand-written, keep me" in text
@@ -273,7 +273,7 @@ class TestTheInitFlag:
         env_file.write_text(
             "\n".join(
                 [
-                    "QLAR_BASE_URL=https://qlar.example.com/api/db-wrapper",
+                    "QLAR_BASE_URL=https://qlar.example.com/api/data-gateway",
                     "DB_PROVIDER=postgresql",
                     "DB_HOST=old.internal",
                     "DB_PORT=5432",
@@ -298,7 +298,7 @@ class TestTheInitFlag:
         env_file.write_text(
             "\n".join(
                 [
-                    "QLAR_BASE_URL=https://qlar.example.com/api/db-wrapper",
+                    "QLAR_BASE_URL=https://qlar.example.com/api/data-gateway",
                     "DB_PROVIDER=postgresql",
                     "DB_HOST=db.internal",
                     "DB_PORT=5432",
@@ -327,7 +327,7 @@ class TestTheEnrolmentCode:
 
     It travels from a web page, through a clipboard, into a file, via whatever shell the
     operator happens to have — and on cmd.exe `echo 'KEY=value' >> .env` writes the quotes
-    into the file, so the wrapper reports the code as unset while it is visibly there.
+    into the file, so the gateway reports the code as unset while it is visibly there.
     Asking for it removes every step in that chain except the clipboard.
     """
 
@@ -427,7 +427,7 @@ class TestEnrollingInOneLine:
     so there is nothing to quote.
     """
 
-    ENDPOINT = "https://qlar.example.com/api/db-wrapper"
+    ENDPOINT = "https://qlar.example.com/api/data-gateway"
 
     def _database_only(self, tmp_path):
         env_file = tmp_path / ".env"
