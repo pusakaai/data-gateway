@@ -42,7 +42,7 @@ Every release publishes SHA-256 checksums alongside the artifacts. Check them be
 installing:
 
 ```bash
-sha256sum -c qlar_db_wrapper-0.1.2.sha256
+sha256sum -c qlar_db_wrapper-0.1.3.sha256
 ```
 
 Docker images are published to `ghcr.io/pusakaai/db-wrapper` and can be pinned by digest.
