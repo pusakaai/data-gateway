@@ -72,29 +72,54 @@ pip install "qlar-db-wrapper[postgresql]"     # or [mysql] / [sqlserver] / [orac
 
 ## Setup, start to finish
 
-**1. Configure.** Copy `.env.example` to `.env` and fill in your database details:
-
-```ini
-QLAR_BASE_URL=https://plugins.qlar.ai/api/db-wrapper
-DB_PROVIDER=postgresql
-DB_HOST=db.internal
-DB_PORT=5432
-DB_NAME=warehouse
-DB_USER=qlar_readonly
-DB_PASSWORD=...
-```
-
-**2. Check the database before involving Qlar at all:**
+**1. Just start it.** With nothing configured yet, the first run asks — and proves the
+answers with a real query before it goes any further:
 
 ```bash
-qlar-db-wrapper test-db
+qlar-db-wrapper run
 ```
 
-**3. Get a one-time enrolment code.** In the Qlar CMS: your agent → Plugins → SQL Database
+```
+========================================================================
+ Qlar DB Wrapper — setup
+========================================================================
+Database
+  1) postgresql  2) mysql  3) sqlserver  4) oracle
+  Which one [postgresql]:
+  Host or connection URL: db.internal
+  Port [5432]:
+  Database name: warehouse
+  Username: qlar_readonly
+  Password:
+
+Qlar
+  Qlar endpoint [https://plugins.qlar.ai/api/db-wrapper]:
+
+Saved to .env (mode 0600). The next start will not ask again.
+
+Testing the database connection: postgresql://qlar_readonly@db.internal:5432/warehouse
+  OK in 34 ms
+  server: PostgreSQL 16.4 on x86_64-pc-linux-gnu
+
+not enrolled yet (no wrapper-state.json). Run: qlar-db-wrapper enroll
+```
+
+The database half is now done and proved; the last line is step 2. Paste a whole
+connection URL at the host question if you have one —
+`postgresql://user:pass@db.internal:5432/warehouse` — and the remaining answers are filled
+in from it for you to confirm.
+
+The answers are written to `.env`, so this happens exactly once; `qlar-db-wrapper run
+--init` asks again, for the day the password rotates or the database moves. Prefer to
+write the file yourself? Copy `.env.example` to `.env` and fill it in — then no question is
+ever asked. And nothing changes for automation: without a terminal to ask on, a missing
+setting is the same configuration error on stderr it has always been.
+
+**2. Get a one-time enrolment code.** In the Qlar CMS: your agent → Plugins → SQL Database
 Reader → *Connect via wrapper*. Put it in `.env` as `QLAR_ENROLLMENT_CODE` (it expires in
 15 minutes and works once).
 
-**4. Enrol.** This generates your key pair — the private key is written to
+**3. Enrol.** This generates your key pair — the private key is written to
 `wrapper-key.pem` with mode `0600` and never leaves the machine.
 
 ```bash
@@ -107,11 +132,12 @@ It prints a fingerprint:
 3A:7F:19:C4:...:C2
 ```
 
-**5. Approve it.** The CMS shows a fingerprint next to the hostname that just registered.
+**4. Approve it.** The CMS shows a fingerprint next to the hostname that just registered.
 Check it matches the line above, character for character, then click **Approve**. This step
 is what makes a stolen enrolment code useless on its own.
 
-**6. Run it.**
+**5. Run it.** Every start re-checks the database first, so a wrapper that cannot reach it
+says so on line one rather than looking healthy and failing every query:
 
 ```bash
 qlar-db-wrapper run
@@ -138,10 +164,15 @@ normal. Full walkthrough including systemd and Kubernetes: [docs/INSTALL.md](doc
 | `qlar-db-wrapper run` | the long-running process |
 | `qlar-db-wrapper version` | release version and protocol version |
 
+`run`, `test-db` and `enroll` take `--init`, which asks for the database details again and
+rewrites `.env` even when it is already complete.
+
 ## Configuration
 
-Everything is read from the environment, or from `.env`. Real environment variables win,
-so a container can override the file without editing it.
+Everything is read from the environment, or from `.env` — which you can write by hand from
+`.env.example`, or let the first run write for you. Real environment variables win, so a
+container can override the file without editing it, and setting them all is how you skip
+the questions entirely.
 
 | Variable | Default | Purpose |
 |---|---|---|

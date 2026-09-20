@@ -7,6 +7,14 @@ service; Kubernetes if that is where your workloads already live.
 Whichever you choose, the sequence is the same: configure → check the database → enrol →
 have it approved → run.
 
+The first step can answer itself. Started with no usable configuration and a terminal to
+ask on, the wrapper collects the database details, writes them to `.env` with mode 0600,
+and runs a test query — so "configure" and "check the database" are one step, and there is
+no `.env.example` to find first. `--init` repeats it later. Everything below also works
+the way it always did, with a `.env` you wrote yourself; and without a terminal — an
+unattended container, a systemd unit — nothing prompts and a missing setting is still a
+configuration error on stderr.
+
 ---
 
 ## Before you start
@@ -67,12 +75,22 @@ chmod 600 .env
 # edit .env
 ```
 
-Check the database, then enrol:
+Editing the file is the better fit here: `--env-file` is a Docker flag, so the host's
+`.env` becomes the container's environment and the prompts have nothing to ask about. To
+be asked instead, give the container a terminal with `-it` and a file it may write — the
+state volume, which the image already owns:
 
 ```bash
-docker run --rm --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.0 test-db
+chown -R 10001:10001 state     # the uid the image runs as
+docker run --rm -it -v "$PWD/state:/state" \
+  ghcr.io/pusakaai/db-wrapper:0.1.0 --env-file /state/.env test-db --init
+```
 
+That writes `state/.env`, which every later command then names the same way
+(`--env-file /state/.env` *after* the image, not Docker's own `--env-file` before it).
+Either way, enrol next:
+
+```bash
 docker run --rm --env-file .env -v "$PWD/state:/state" \
   ghcr.io/pusakaai/db-wrapper:0.1.0 enroll
 ```
@@ -103,12 +121,18 @@ sudo ./venv/bin/pip install "qlar-db-wrapper[postgresql]"
 sudo chown -R qlar:qlar /opt/qlar-db-wrapper
 ```
 
-Put `.env` in `/opt/qlar-db-wrapper`, `chmod 600`, owned by `qlar`. Then, as that user:
+Answer the setup prompts as the service user — as that user, so the `.env` it writes is
+readable by the service and by nobody else:
 
 ```bash
-sudo -u qlar ./venv/bin/qlar-db-wrapper test-db
+sudo -u qlar ./venv/bin/qlar-db-wrapper test-db --init
 sudo -u qlar ./venv/bin/qlar-db-wrapper enroll
 ```
+
+(Or put a hand-written `.env` in `/opt/qlar-db-wrapper`, `chmod 600`, owned by `qlar`, and
+run `test-db` without the flag.) The unit itself runs unattended and never prompts: it has
+no terminal, so a missing setting fails the start with a configuration error, which is what
+you want from a service.
 
 Approve the fingerprint in the CMS, then `/etc/systemd/system/qlar-db-wrapper.service`:
 
@@ -185,6 +209,11 @@ spec:
 Enrol once with a `kubectl run --rm -it` pod sharing the same secret and volume, approve
 the fingerprint, then scale the deployment up.
 
+The `Secret` is the configuration here, so there is nothing for the setup prompts to write:
+a pod has no terminal and will not ask. Use `qlar-db-wrapper test-db` in that same
+throwaway pod to check the credentials in the `Secret` before the deployment depends on
+them.
+
 **On replicas:** more than one is supported — each polls independently and Qlar hands each
 job to whichever asks first — but every replica must mount the *same* key, since the key is
 the wrapper's identity. If you want genuinely independent wrappers, enrol them separately
@@ -213,6 +242,9 @@ In the CMS the wrapper should show as online within a few seconds of starting.
 | Stays "pending approval" | nobody approved the fingerprint yet | CMS → wrapper → compare fingerprint → Approve |
 | `this wrapper has been revoked` then exits | revoked in the CMS | delete `wrapper-state.json` and enrol again |
 | `configuration error: DB_PROVIDER must be one of …` | typo, or the variable is unset | `postgresql`, `mysql`, `sqlserver`, `oracle` |
+| Asked for the database details on every start | the `.env` it writes is not where the next start reads it — a container without the file mounted, or a different working directory | mount `.env`, or pass `--env-file /path/to/.env` |
+| `--init needs a terminal to ask on` | no TTY: `docker run` without `-it`, a systemd unit, CI | add `-it`, or edit `.env` directly |
+| Setup says the connection failed | the details are saved anyway | fix `.env` by hand, or `qlar-db-wrapper run --init` |
 | `the postgresql driver is not installed` | installed without the extra | `pip install "qlar-db-wrapper[postgresql]"` |
 | `is accessible to group/other` | key file permissions | `chmod 600 wrapper-key.pem` |
 | Queries fail with `table … is not in this wrapper's TABLE_ALLOWLIST` | working as designed | add the table to `TABLE_ALLOWLIST`, or clear it to allow all |

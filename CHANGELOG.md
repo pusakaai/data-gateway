@@ -11,6 +11,28 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+### Added
+
+- **Setup prompts on first run.** `run`, `test-db` and `enroll` started without usable
+  configuration now ask for the database details — provider, host, port, database, user,
+  password, and the Qlar endpoint — and write them to `.env` with mode 0600, so installing
+  the wrapper and starting it is the whole job. A connection URL pasted at the host
+  question fills in the rest. Only when there is a terminal to ask on: a container without
+  `-it`, a systemd unit and CI get exactly the configuration error they got before.
+- **`--init`** on those three commands, which asks again over a complete `.env` — for a
+  rotated password or a moved database. The file is rewritten in place, so hand-added
+  settings and comments survive.
+- **A test query at every start**, not only in `test-db`. A wrapper that polls happily
+  while every query fails looks healthy in the CMS, which is the most confusing way for an
+  installation to be broken. `run` reports the database and its server version on line one,
+  and keeps running if it is merely down for the moment.
+
+### Changed
+
+- `.env` values may be quoted, and a quoted value now loses exactly one surrounding pair
+  rather than every quote character — so a password with a leading space, a `#` or a
+  trailing quote survives the round trip.
+
 ## [0.1.0] - 2026-09-19
 
 First public release. Protocol version 1.
