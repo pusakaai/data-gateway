@@ -3,17 +3,23 @@
 Five commands, in the order an operator meets them:
 
     test-db      check the database credentials before involving Qlar at all
-    enroll       register with Qlar using the one-time code from the CMS
+    enroll       register with Qlar and serve — the only command most people need
     fingerprint  print this wrapper's key fingerprint, to compare with the CMS
-    run          the long-running process: poll, execute, answer
+    run          serve, for a machine that is already enrolled
     version      what is installed, and which protocol it speaks
+
+`enroll` is the whole installation. It enrols if this machine is not enrolled yet, prints
+the fingerprint to compare, and then stays up and polls — including through the wait for
+someone to click Approve. Running it again on an enrolled machine skips enrolment and goes
+straight to serving, which is what a container restart does. `run` remains for service
+definitions that would rather not carry an enrolment step at all; it is the same loop.
 
 `run`, `test-db` and `enroll` need database settings. When those are missing and there is
 a terminal to ask on, the setup prompts in `wizard.py` collect them and write `.env`
 instead of printing a configuration error — so a fresh install is `pip install` then
-`run`, with nothing to read first. `--init` runs those prompts even when `.env` is already
-complete. Without a terminal — a container, a systemd unit — nothing changes: the same
-configuration error as before, on stderr, with the same exit code.
+`enroll`, with nothing to read first. `--init` runs those prompts even when `.env` is
+already complete. Without a terminal — a container, a systemd unit — nothing changes: the
+same configuration error as before, on stderr, with the same exit code.
 """
 
 from __future__ import annotations
@@ -64,10 +70,15 @@ def main(argv: list[str] | None = None) -> int:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     _with_init_flag(
-        subparsers.add_parser("run", help="poll Qlar for jobs and execute them (the main process)")
+        subparsers.add_parser(
+            "run", help="poll Qlar for jobs and execute them (already enrolled machines)"
+        )
     )
     enroll_parser = _with_init_flag(
-        subparsers.add_parser("enroll", help="register this wrapper with Qlar using a one-time code")
+        subparsers.add_parser(
+            "enroll",
+            help="register this wrapper with Qlar and start serving (the command to use)",
+        )
     )
     # The two values that come from Qlar rather than from this machine. As arguments they
     # travel in one copy-paste line, identical in every shell - neither contains a space, so
@@ -105,7 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "fingerprint":
         return _command_fingerprint(settings)
     if args.command == "enroll":
-        return _command_enroll(settings, Path(args.env_file), getattr(args, "code", None))
+        return _command_enroll(
+            settings, Path(args.env_file), getattr(args, "code", None), connection_ok
+        )
     if args.command == "run":
         return _command_run(settings, connection_ok)
 
@@ -187,12 +200,39 @@ def _command_fingerprint(settings: Settings) -> int:
     return 0
 
 
-def _command_enroll(settings: Settings, env_file: Path, code: str | None = None) -> int:
+def _command_enroll(
+    settings: Settings, env_file: Path, code: str | None = None, connection_ok: bool | None = None
+) -> int:
+    """Makes sure this machine is enrolled, then serves queries. One command, start to finish.
+
+    There used to be a second one. `enroll` printed a fingerprint and exited, and the operator
+    was told to come back and type `run` after clicking Approve — a handover across a wait of
+    unknown length, in a different window, often on a different day. People missed it, and the
+    wrapper that Qlar showed as approved was simply not running.
+
+    So enrolment now flows straight into the poll loop, which has always tolerated not being
+    approved yet and now says so in words. Approving in Qlar is the last thing anyone has to do.
+
+    It is also idempotent, which is what makes it safe to be the only command: a machine that is
+    already enrolled skips enrolment and goes straight to work. That is what a container restart
+    does, and what an operator restarting a wrapper that died should be able to do without
+    hunting for a code that was single-use and is long gone.
+    """
     if code:
         settings = replace(settings, enrollment_code=code.strip().strip("\"'").upper())
 
-    # Whatever route the endpoint arrived by, the next `run` reads it from the file.
+    # Whatever route the endpoint arrived by, later starts read it from the file.
     _remember_base_url(settings, env_file)
+
+    state = EnrollmentState.load(settings.state_file)
+    if state is not None and state.base_url == settings.base_url:
+        # Already ours. Enrolling again is not just unnecessary, it is impossible: the code was
+        # redeemed once and Qlar keeps only a hash of it.
+        console.banner(f"Qlar DB Wrapper {__version__}")
+        console.field("endpoint", settings.base_url)
+        console.field("wrapper id", state.wrapper_id)
+        console.detail("already enrolled; starting")
+        return _serve(settings, state, connection_ok)
 
     # The code was the one answer the setup prompts did not cover, so it had to be typed
     # into `.env` by hand - and the instructions for doing that are shell-specific in a way
@@ -221,9 +261,9 @@ def _command_enroll(settings: Settings, env_file: Path, code: str | None = None)
     print()
     console.step(1, "CMS -> your agent -> Plugins -> SQL Database Reader")
     console.step(2, "check the fingerprint matches, then click Approve")
-    console.step(3, "come back here and run:   qlar-db-wrapper run")
+    console.step(3, "nothing. This keeps running and starts working when you do.")
     print()
-    return 0
+    return _serve(settings, state, connection_ok)
 
 
 def _remember_base_url(settings: Settings, env_file: Path) -> None:
@@ -272,8 +312,24 @@ def _command_run(settings: Settings, connection_ok: bool | None) -> int:
 
     console.field("wrapper id", state.wrapper_id)
 
-    # Then the database. A wrapper that polls happily while every query fails looks healthy
-    # in the CMS, and that is the most confusing way for an installation to be broken.
+    if state.base_url != settings.base_url:
+        print(
+            f"QLAR_BASE_URL ({settings.base_url}) does not match the URL this wrapper enrolled "
+            f"against ({state.base_url}). Re-enrol if the Qlar endpoint really changed.",
+            file=sys.stderr,
+        )
+        return 2
+
+    return _serve(settings, state, connection_ok)
+
+
+def _serve(settings: Settings, state: EnrollmentState, connection_ok: bool | None) -> int:
+    """Checks the database, then polls until stopped or revoked.
+
+    Shared by `run` and `enroll`, which differ only in how they got hold of the enrolment.
+    """
+    # A wrapper that polls happily while every query fails looks healthy in the CMS, and that
+    # is the most confusing way for an installation to be broken.
     if connection_ok is None:
         connection_ok = check_connection(settings)
     if not connection_ok:
@@ -285,14 +341,6 @@ def _command_run(settings: Settings, connection_ok: bool | None) -> int:
             "Run `qlar-db-wrapper run --init` to re-enter the connection details.",
             file=sys.stderr,
         )
-
-    if state.base_url != settings.base_url:
-        print(
-            f"QLAR_BASE_URL ({settings.base_url}) does not match the URL this wrapper enrolled "
-            f"against ({state.base_url}). Re-enrol if the Qlar endpoint really changed.",
-            file=sys.stderr,
-        )
-        return 2
 
     print()
     print("  Polling for work. Ctrl-C stops it; jobs already running finish first.")

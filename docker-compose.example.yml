@@ -2,19 +2,23 @@
 #
 # Copy to docker-compose.yml, put your settings in .env next to it, then:
 #
-#   docker compose run --rm wrapper test-db     # check the database
-#   docker compose run --rm wrapper enroll      # register, then approve in the CMS
-#   docker compose up -d                        # run it
+#   docker compose run --rm wrapper test-db   # optional: check the database first
+#   docker compose up -d                      # enrol and serve
+#   docker compose logs -f                    # read the fingerprint, then approve in the CMS
+#
+# `enroll` is the command below rather than `run` because it does both: it enrols if this
+# machine is not enrolled yet, and otherwise goes straight to serving. That makes a restart
+# safe - an enrolment code is single use, and re-running this never tries to redeem one.
 #
 # Note what is missing: there is no `ports:` section. The wrapper only makes outbound
 # connections, so nothing needs to be published.
 
 services:
   wrapper:
-    image: ghcr.io/pusakaai/db-wrapper:0.1.6
+    image: ghcr.io/pusakaai/db-wrapper:0.1.7
     container_name: qlar-db-wrapper
     restart: unless-stopped
-    command: ["run"]
+    command: ["enroll"]
     env_file: .env
     volumes:
       # The wrapper's identity (key pair), its enrolment state and your audit log.

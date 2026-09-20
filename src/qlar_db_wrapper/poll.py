@@ -35,6 +35,11 @@ RESULT_PATH = "/jobs/{job_id}/result"
 MIN_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 15.0
 
+# Waiting to be approved is not a failure, so it does not use the error backoff. A human is
+# looking at the screen in Qlar with the fingerprint in front of them; the wrapper should start
+# working within a few seconds of the click, not up to fifteen.
+APPROVAL_POLL_SECONDS = 4.0
+
 # How many times a finished result is re-sent if the network drops on the way back.
 # Posting a result is idempotent on Qlar's side (keyed by job id), so a retry is safe and
 # is much better than throwing away work the database already paid for.
@@ -43,6 +48,17 @@ RESULT_ATTEMPTS = 4
 
 class Revoked(Exception):
     """Qlar says this wrapper is revoked. The loop stops; a human must re-enrol it."""
+
+
+class AwaitingApproval(Exception):
+    """Enrolled, but no human has confirmed the fingerprint yet. The loop waits, quietly.
+
+    This is the normal state of a wrapper for the minute or two between installing it and
+    someone clicking Approve, and the loop has always survived it — but it used to arrive as a
+    nameless `QlarRejected`, logged as `Qlar rejected the poll: HTTP 403: Forbidden` every few
+    seconds with the word "approval" nowhere in sight. Operators read that as a failure, killed
+    the process, and then had to be told to start it again after approving.
+    """
 
 
 class PollLoop:
@@ -74,6 +90,9 @@ class PollLoop:
     def run_forever(self) -> None:
         """Polls until stopped or revoked."""
         backoff = MIN_BACKOFF_SECONDS
+        # Whether the "waiting for approval" line has already been said. It doubles as the flag
+        # that makes the first successful poll announce the approval.
+        announced_waiting = False
         logger.info(
             "wrapper %s starting, polling %s (protocol %d, version %s)",
             self.state.wrapper_id, self.settings.base_url, PROTOCOL_VERSION, __version__,
@@ -90,8 +109,24 @@ class PollLoop:
             try:
                 job = self._poll_once()
                 backoff = MIN_BACKOFF_SECONDS
+                if announced_waiting:
+                    # The click happened. Say so plainly: this is the line that tells the
+                    # operator the wrapper is theirs and working, and that they are done.
+                    logger.info("approved. Serving queries for %s", self.settings.base_url)
+                    announced_waiting = False
                 if job is not None:
                     self._dispatch(job)
+            except AwaitingApproval:
+                # Said once, not every few seconds: this wait is expected and is measured in
+                # the time it takes a person to look at a fingerprint.
+                if not announced_waiting:
+                    logger.info(
+                        "enrolled, waiting for approval in Qlar. Compare the key fingerprint "
+                        "above with the one the CMS shows and click Approve; this starts "
+                        "working on its own, nothing else to run here.",
+                    )
+                    announced_waiting = True
+                self._sleep_with_jitter(APPROVAL_POLL_SECONDS)
             except Revoked:
                 logger.error(
                     "this wrapper has been revoked in the Qlar CMS; stopping. "
@@ -139,8 +174,12 @@ class PollLoop:
                 timeout=self.settings.poll_timeout_seconds + 15,
             )
         except QlarRejected as rejection:
-            if rejection.status == 403 and str(rejection.body.get("reason", "")).lower() == "revoked":
-                raise Revoked from rejection
+            if rejection.status == 403:
+                reason = str(rejection.body.get("reason", "")).lower()
+                if reason == "revoked":
+                    raise Revoked from rejection
+                if reason == "pending_approval":
+                    raise AwaitingApproval from rejection
             raise
 
         if status == 204 or not body:

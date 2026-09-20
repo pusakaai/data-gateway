@@ -194,7 +194,7 @@ Responses:
 | `200` | body contains a job (see below) |
 | `204` | nothing to do; poll again immediately |
 | `401` | signature, timestamp or nonce rejected |
-| `403` with `{"reason":"pending_approval"}` | enrolled but not yet approved — keep polling |
+| `403` with `{"reason":"pending_approval"}` | enrolled but not yet approved — keep polling, and say so as a wait rather than as an error |
 | `403` with `{"reason":"revoked"}` | stop; a human must re-enrol this wrapper |
 
 ### The job

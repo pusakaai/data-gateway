@@ -61,15 +61,15 @@ of the allowlist.
 Docker (recommended — no Python on the host):
 
 ```bash
-docker pull ghcr.io/pusakaai/db-wrapper:0.1.6
+docker pull ghcr.io/pusakaai/db-wrapper:0.1.7
 ```
 
 Or with pip, installing only the driver you need. The wheel comes from the release rather
 than from PyPI, where this package is not published:
 
 ```bash
-pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.6/qlar_db_wrapper-0.1.6-py3-none-any.whl"
-qlar-db-wrapper version     # should print 0.1.6
+pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.7/qlar_db_wrapper-0.1.7-py3-none-any.whl"
+qlar-db-wrapper version     # should print 0.1.7
 ```
 
 Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
@@ -81,11 +81,11 @@ version does print one.
 
 ## Setup, start to finish
 
-**1. Just start it.** With nothing configured yet, the first run asks — and proves the
+**1. Just start it.** With nothing configured yet, the first start asks — and proves the
 answers with a real query before it goes any further:
 
 ```bash
-qlar-db-wrapper run
+qlar-db-wrapper enroll
 ```
 
 ```
@@ -142,30 +142,35 @@ endpoint is saved to `.env` for later starts; the code is not, because it is spe
 either one out and you are asked for it instead — `qlar-db-wrapper enroll` on its own still
 works.
 
-It prints a fingerprint:
+It prints a fingerprint, and then keeps running:
 
 ```
 3A:7F:19:C4:...:C2
+
+enrolled, waiting for approval in Qlar. Compare the key fingerprint above with the one
+the CMS shows and click Approve; this starts working on its own, nothing else to run here.
 ```
 
 **4. Approve it.** The CMS shows a fingerprint next to the hostname that just registered.
 Check it matches the line above, character for character, then click **Approve**. This step
 is what makes a stolen enrolment code useless on its own.
 
-**5. Run it.** Every start re-checks the database first, so a wrapper that cannot reach it
-says so on line one rather than looking healthy and failing every query:
+There is no step 5. Within a few seconds of the click the wrapper says `approved. Serving
+queries for ...` and starts answering. Every start re-checks the database first, so one that
+cannot reach it says so on line one rather than looking healthy and failing every query.
 
-```bash
-qlar-db-wrapper run
-```
-
-Docker equivalent:
+Docker, which needs the fingerprint out of the logs because the container is detached:
 
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.6 run
+  ghcr.io/pusakaai/db-wrapper:0.1.7 enroll
+
+docker logs -f qlar-db-wrapper   # read the fingerprint, approve, watch it connect
 ```
+
+Stopping `docker logs` does not stop the wrapper. Running that same `docker run` line again
+after a restart re-uses the existing enrolment rather than trying to redeem a spent code.
 
 Back in the CMS the wrapper shows as online, and you continue with table detection as
 normal. Full walkthrough including systemd and Kubernetes: [docs/INSTALL.md](docs/INSTALL.md).
@@ -175,9 +180,9 @@ normal. Full walkthrough including systemd and Kubernetes: [docs/INSTALL.md](doc
 | Command | What it does |
 |---|---|
 | `qlar-db-wrapper test-db` | verify the database settings without contacting Qlar |
-| `qlar-db-wrapper enroll` | register with Qlar using the one-time code |
+| `qlar-db-wrapper enroll` | register with Qlar and serve — the only command most people need |
 | `qlar-db-wrapper fingerprint` | print the key fingerprint to compare with the CMS |
-| `qlar-db-wrapper run` | the long-running process |
+| `qlar-db-wrapper run` | serve, for a machine that is already enrolled |
 | `qlar-db-wrapper version` | release version and protocol version |
 
 `run`, `test-db` and `enroll` take `--init`, which asks for the database details again and

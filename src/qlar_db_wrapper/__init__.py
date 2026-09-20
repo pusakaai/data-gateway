@@ -9,7 +9,7 @@ the customer's premises.
 # Single source of truth for the release version: pyproject.toml reads it from here
 # (`[tool.setuptools.dynamic] version = { attr = "qlar_db_wrapper.__version__" }`), so a
 # release only ever has to change this line plus CHANGELOG.md.
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 # The wire contract version, deliberately separate from the release version. Qlar sends it
 # back in every job and rejects a wrapper that speaks a version it does not support, so a
