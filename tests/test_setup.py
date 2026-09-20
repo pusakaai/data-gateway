@@ -54,7 +54,7 @@ class Console:
 
     def install(self, monkeypatch, *, connection_ok: bool = True, writable: bool | None = False):
         monkeypatch.setattr("builtins.input", self.input)
-        monkeypatch.setattr(wizard.getpass, "getpass", self.input)
+        monkeypatch.setattr(wizard, "prompt_for_secret", self.input)
         monkeypatch.setattr(wizard, "can_prompt", lambda: True)
         monkeypatch.setattr(wizard, "test_connection", _connection(connection_ok))
         monkeypatch.setattr(wizard, "account_can_write", lambda _settings: writable)
@@ -95,7 +95,7 @@ class TestFirstRun:
             "",  # port: the provider's default
             "warehouse",  # database name
             "qlar_readonly",  # username
-            "s3cret pass",  # password, via getpass
+            "s3cret pass",  # password, masked at the prompt
             ENDPOINT,  # Qlar endpoint
         ).install(monkeypatch)
 
