@@ -11,8 +11,32 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-20
+
+Everything here came from one operator installing the wrapper on Windows and following the
+instructions exactly. The instructions were written for a POSIX shell; the machine was not.
+
+### Added
+
+- **`enroll` asks for the one-time code** when it is not configured and there is a terminal
+  to ask on. It was the only answer the setup prompts did not cover, so it had to be typed
+  into `.env` by hand — and that is the step where the shell gets involved. A pasted code
+  keeps working; quotes and case are tidied up on the way through.
+
 ### Fixed
 
+- **A `.env` written by `cmd.exe` is now read.** `echo 'KEY=value' >> .env` is correct in a
+  POSIX shell and a trap in cmd, which has no single-quote quoting and writes the quotes
+  into the file. The result was a key named `'KEY`, so the wrapper reported a setting as
+  unset while the operator was looking straight at it. A line wrapped in quotes is now
+  unwrapped; a *value* wrapped in quotes still means what it always did.
+- **A UTF-8 BOM no longer becomes part of the first key.** Several Windows editors write
+  one, and it is invisible on screen.
+- **UTF-16 is named instead of crashing.** PowerShell 5.1's `>>` writes it, and the loader
+  used to raise `UnicodeDecodeError` out of a config file. It now says what the encoding is
+  and what to do about it.
+- **An unreadable `.env` is never silently overwritten.** The setup prompts move it aside
+  to `.env.bak` and say so; whatever was in it was put there by someone.
 - **The pip instructions named a package that is not on PyPI.** `pip install
   "qlar-db-wrapper[postgresql]"` answers `No matching distribution found`: the release
   workflow builds the wheel and attaches it to the GitHub release, and never publishes it
@@ -96,5 +120,6 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.2
 [0.1.1]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.1

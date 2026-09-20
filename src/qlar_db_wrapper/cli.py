@@ -23,6 +23,7 @@ import logging
 import os
 import signal
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from . import PROTOCOL_VERSION, __version__
@@ -30,7 +31,7 @@ from .config import ConfigError, EnrollmentState, Settings, load_settings
 from .crypto import fingerprint, load_or_create_private_key, public_key_pem
 from .enroll import EnrollmentError, enroll
 from .poll import PollLoop
-from .wizard import SetupAborted, can_prompt, check_connection, run_setup
+from .wizard import SetupAborted, ask_enrollment_code, can_prompt, check_connection, run_setup
 
 DEFAULT_ENV_FILE = ".env"
 
@@ -158,6 +159,17 @@ def _command_fingerprint(settings: Settings) -> int:
 
 
 def _command_enroll(settings: Settings) -> int:
+    # The code was the one answer the setup prompts did not cover, so it had to be typed
+    # into `.env` by hand - and the instructions for doing that are shell-specific in a way
+    # that bites on Windows, where `echo 'KEY=value'` writes the quotes into the file. A
+    # prompt has no shell in it.
+    if settings.enrollment_code is None and can_prompt():
+        try:
+            settings = replace(settings, enrollment_code=ask_enrollment_code())
+        except SetupAborted as error:
+            print(f"cancelled: {error}", file=sys.stderr)
+            return 2
+
     try:
         state, key_fingerprint = enroll(settings)
     except EnrollmentError as error:

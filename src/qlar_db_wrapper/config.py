@@ -39,8 +39,8 @@ def load_dotenv(path: Path) -> None:
     if not path.exists():
         return
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
+    for raw_line in read_env_text(path).splitlines():
+        line = unwrap_quoted_line(raw_line.strip())
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
@@ -48,6 +48,50 @@ def load_dotenv(path: Path) -> None:
         value = unquote_env_value(value.strip())
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def read_env_text(path: Path) -> str:
+    """Reads an env file, naming the encoding problems Windows creates rather than crashing.
+
+    Two of them, both from an operator following instructions on the wrong shell:
+
+    * **UTF-16.** PowerShell 5.1's `>>` writes it. Decoded as UTF-8 the file is either a
+      `UnicodeDecodeError` traceback or, worse, silence - so it is detected and explained.
+    * **A UTF-8 BOM.** Several Windows editors add one, and it would otherwise become part
+      of the first key, which then matches nothing and is invisible on screen.
+    """
+    raw = path.read_bytes()
+
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")) or raw[1:2] == b"\x00":
+        raise ConfigError(
+            f"{path} is UTF-16 encoded, which usually means it was written by PowerShell's "
+            "`>>` operator. Save it as UTF-8, or delete it and let the setup prompts write it."
+        )
+
+    try:
+        # utf-8-sig drops a BOM when there is one and behaves as plain UTF-8 when there is not.
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise ConfigError(
+            f"{path} is not valid UTF-8 ({error}). Save it as UTF-8, or delete it and let the "
+            "setup prompts write it."
+        ) from error
+
+
+def unwrap_quoted_line(line: str) -> str:
+    """Unwraps a whole `'KEY=value'` line, which is what cmd.exe writes.
+
+    `echo 'KEY=value' >> .env` is correct in a POSIX shell and a trap in cmd, which has no
+    single-quote quoting and writes the quotes literally. The result is a key named `'KEY`
+    that matches nothing, while the line on screen looks exactly right — the operator sees
+    their setting in the file and the wrapper says it is unset.
+
+    Unwrapping costs nothing: a value that is itself quoted, `KEY='value'`, does not start
+    with a quote, so it is left to `unquote_env_value` as before.
+    """
+    if len(line) >= 2 and line[0] == line[-1] and line[0] in "\"'" and "=" in line[1:-1]:
+        return line[1:-1].strip()
+    return line
 
 
 def unquote_env_value(value: str) -> str:
@@ -80,7 +124,7 @@ def quote_env_value(value: str) -> str:
     return f'"{value}"' if needs_quotes else value
 
 
-def write_env_values(path: Path, values: dict[str, str]) -> None:
+def write_env_values(path: Path, values: dict[str, str]) -> Path | None:
     """Writes `KEY=value` settings into an env file, updating keys where they already are.
 
     Rewriting the file rather than appending keeps it readable after the tenth `--init`:
@@ -91,11 +135,19 @@ def write_env_values(path: Path, values: dict[str, str]) -> None:
     same reasoning as the private key in `crypto.py`. It is truncated and rewritten in
     place rather than written beside and renamed: a `.env` is routinely bind-mounted into
     a container by path, and a rename would leave the container holding the old inode.
+
+    Returns the path an unreadable existing file was moved to, or None. A file this cannot
+    parse is never silently overwritten — whatever is in it was put there by someone.
     """
+    backup: Path | None = None
+    lines = _new_env_file_header()
+
     if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
-    else:
-        lines = _new_env_file_header()
+        try:
+            lines = read_env_text(path).splitlines()
+        except ConfigError:
+            backup = path.with_suffix(path.suffix + ".bak")
+            path.replace(backup)
 
     remaining = dict(values)
     rewritten: list[str] = []
@@ -124,6 +176,8 @@ def write_env_values(path: Path, values: dict[str, str]) -> None:
         os.chmod(path, 0o600)
     except OSError:  # pragma: no cover - Windows, or a filesystem without modes
         pass
+
+    return backup
 
 
 def _new_env_file_header() -> list[str]:
