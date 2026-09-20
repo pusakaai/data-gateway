@@ -319,7 +319,7 @@ class TestTheInitFlag:
         monkeypatch.setattr(wizard, "account_can_write", lambda _settings: False)
 
         assert cli.main(["--env-file", str(env_file), "test-db"]) == 0
-        assert "OK in 7 ms" in capsys.readouterr().out
+        assert "connected in 7 ms" in capsys.readouterr().out
 
 
 class TestTheEnrolmentCode:

@@ -203,3 +203,54 @@ class TestChoosingHowToRead:
 
         with pytest.raises(KeyboardInterrupt):
             masked_input.prompt_for_secret("Password: ")
+
+
+class TestEverythingPrintedIsAscii:
+    """A console picks its own code page, and we do not get a say.
+
+    cp1252 has no arrow; cp437 has no em dash either. Python's answer to a character it
+    cannot encode is to raise, so a decorative dash in a success message is a crash on
+    someone else's machine - which is exactly how `enroll` died on a Windows console while
+    printing the line telling the operator where to find their enrolment code.
+
+    So: message strings are ASCII. This test is the thing that keeps them that way, because
+    the character that breaks it will arrive in a commit that looks harmless.
+    """
+
+    def test_no_message_string_needs_more_than_ascii(self):
+        import ast
+        from pathlib import Path
+
+        import qlar_db_wrapper
+
+        package = Path(qlar_db_wrapper.__file__).parent
+        offenders: list[str] = []
+
+        for source in sorted(package.rglob("*.py")):
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+            docstrings = {
+                doc
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                and (doc := ast.get_docstring(node, clean=False))
+            }
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                    continue
+                # Docstrings are never encoded to a terminal, and a single character is a
+                # key code or a delimiter rather than something anyone reads.
+                if node.value in docstrings or len(node.value) < 2:
+                    continue
+                if not node.value.isascii():
+                    beyond = [hex(ord(c)) for c in node.value if not c.isascii()]
+                    offenders.append(f"{source.name}:{node.lineno} {beyond} {node.value[:50]!r}")
+
+        assert not offenders, "non-ASCII in strings that may be printed:\n" + "\n".join(offenders)
+
+    def test_the_guard_survives_a_stream_that_cannot_be_reconfigured(self, monkeypatch):
+        import io
+
+        from qlar_db_wrapper import console
+
+        monkeypatch.setattr(console.sys, "stdout", io.StringIO())
+        console.make_output_safe()  # a StringIO has no reconfigure; this must not raise
