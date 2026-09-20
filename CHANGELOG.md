@@ -11,6 +11,14 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The pip instructions named a package that is not on PyPI.** `pip install
+  "qlar-db-wrapper[postgresql]"` answers `No matching distribution found`: the release
+  workflow builds the wheel and attaches it to the GitHub release, and never publishes it
+  anywhere else. README and `docs/INSTALL.md` now install from the release asset, which
+  works today. If the package is ever published to PyPI, the short form comes back.
+
 ## [0.1.1] - 2026-09-20
 
 The first published release. 0.1.0 was tagged in the changelog but never cut, so the
