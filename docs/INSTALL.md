@@ -83,7 +83,7 @@ state volume, which the image already owns:
 ```bash
 chown -R 10001:10001 state     # the uid the image runs as
 docker run --rm -it -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.0 --env-file /state/.env test-db --init
+  ghcr.io/pusakaai/db-wrapper:0.1.1 --env-file /state/.env test-db --init
 ```
 
 That writes `state/.env`, which every later command then names the same way
@@ -92,7 +92,7 @@ Either way, enrol next:
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.0 enroll
+  ghcr.io/pusakaai/db-wrapper:0.1.1 enroll
 ```
 
 `enroll` prints a fingerprint. Approve it in the Qlar CMS, then start the service:
@@ -100,7 +100,7 @@ docker run --rm --env-file .env -v "$PWD/state:/state" \
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.0 run
+  ghcr.io/pusakaai/db-wrapper:0.1.1 run
 ```
 
 The image defaults `WRAPPER_KEY_FILE` and `WRAPPER_STATE_FILE` into `/state`, so mounting
@@ -188,7 +188,7 @@ spec:
     spec:
       containers:
         - name: wrapper
-          image: ghcr.io/pusakaai/db-wrapper:0.1.0
+          image: ghcr.io/pusakaai/db-wrapper:0.1.1
           args: ["run"]
           envFrom:
             - secretRef: { name: qlar-db-wrapper-env }

@@ -11,6 +11,11 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-20
+
+The first published release. 0.1.0 was tagged in the changelog but never cut, so the
+artifacts and images below are the first that exist.
+
 ### Added
 
 - **Setup prompts on first run.** `run`, `test-db` and `enroll` started without usable
@@ -50,7 +55,9 @@ does not change the protocol version.
 
 ## [0.1.0] - 2026-09-19
 
-First public release. Protocol version 1.
+Never published: no tag, no image, no release artifacts. Kept here because it is what the
+code was before 0.1.1, and because deleting history to tidy it up is its own kind of lie.
+Protocol version 1.
 
 ### Added
 
@@ -81,5 +88,5 @@ First public release. Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.0
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.1
