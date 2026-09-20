@@ -11,6 +11,14 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The pip line now says `--upgrade`, and is followed by a version check.** Asked for a
+  version that is already installed, pip downloads the wheel, installs nothing, and prints
+  no `Successfully installed` to say so — which reads exactly like a failed upgrade. The
+  check answers it in one line, and `--upgrade` covers older pip, where a direct URL could
+  count as satisfied by any installed version of the same name.
+
 ## [0.1.3] - 2026-09-20
 
 ### Added

@@ -68,10 +68,16 @@ Or with pip, installing only the driver you need. The wheel comes from the relea
 than from PyPI, where this package is not published:
 
 ```bash
-pip install "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.3/qlar_db_wrapper-0.1.3-py3-none-any.whl"
+pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.3/qlar_db_wrapper-0.1.3-py3-none-any.whl"
+qlar-db-wrapper version     # should print 0.1.3
 ```
 
 Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
+
+The `version` check is there because pip is quiet in the one case that looks like a
+failure: asked for a version that is already installed, it downloads the wheel, installs
+nothing, and prints no `Successfully installed` line to say so. Upgrading from an older
+version does print one.
 
 ## Setup, start to finish
 
