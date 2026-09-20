@@ -11,6 +11,8 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-20
+
 ### Added
 
 - **The setup prompts say what they read from the file**, by key name, before asking for
@@ -128,6 +130,7 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.3
 [0.1.2]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.2
 [0.1.1]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.1
