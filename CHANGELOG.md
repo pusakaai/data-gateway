@@ -11,6 +11,41 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-20
+
+One command installs a wrapper. `enroll` no longer hands the operator back to a second
+command they had to remember to run after someone else clicked a button.
+
+### Changed
+
+- **`enroll` enrols and then serves.** It prints the fingerprint to compare, stays up, and
+  starts answering queries the moment the wrapper is approved in Qlar. The old flow ended
+  at "come back here and run: qlar-db-wrapper run" - a handover across a wait of unknown
+  length, usually in a different window and often on a different day. It was missed often
+  enough that "the CMS says approved but nothing works" became the common failure report.
+- **`enroll` is idempotent.** A machine that is already enrolled against the same endpoint
+  skips enrolment and goes straight to serving. This is what makes it safe as the only
+  command: a container restart re-runs it, and an operator whose wrapper died can run the
+  same line again without hunting for a code that was single-use and is long gone.
+- **Waiting for approval is no longer reported as a failure.** `403 pending_approval` now
+  raises `AwaitingApproval` and is logged once, at INFO, in words: "enrolled, waiting for
+  approval in Qlar ... this starts working on its own, nothing else to run here." Before,
+  it fell through to the generic branch and printed `Qlar rejected the poll: HTTP 403:
+  Forbidden` every few seconds with the word "approval" nowhere on screen - which is
+  exactly why operators killed the process and then had to be told to start it again.
+- **Approval is picked up in seconds.** Waiting uses a steady 4-second interval rather than
+  the error backoff, which had stretched to 15 seconds by the time anyone clicked. A
+  person is looking at a fingerprint; the wrapper should not make them wonder.
+- **The first successful poll after a wait says so**: "approved. Serving queries for ...".
+
+### Unchanged
+
+- `run` still exists and is still the same loop, for service definitions that would rather
+  not carry an enrolment step. Nothing that runs today needs changing.
+- `revoked` is still the one refusal that stops the wrapper, and every other rejection is
+  still retried with the same backoff. Only the two states an operator can act on are
+  named.
+
 ## [0.1.6] - 2026-09-20
 
 Everything an operator reads on screen, rewritten around a screenshot of someone who had

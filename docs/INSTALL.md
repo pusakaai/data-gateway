@@ -83,25 +83,30 @@ state volume, which the image already owns:
 ```bash
 chown -R 10001:10001 state     # the uid the image runs as
 docker run --rm -it -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.6 --env-file /state/.env test-db --init
+  ghcr.io/pusakaai/db-wrapper:0.1.7 --env-file /state/.env test-db --init
 ```
 
 That writes `state/.env`, which every later command then names the same way
 (`--env-file /state/.env` *after* the image, not Docker's own `--env-file` before it).
-Either way, enrol next:
-
-```bash
-docker run --rm --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.6 enroll
-```
-
-`enroll` prints a fingerprint. Approve it in the Qlar CMS, then start the service:
+Either way, start it next. One command: `enroll` registers the wrapper and then keeps
+running, so there is nothing to come back and type once it has been approved.
 
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.6 run
+  ghcr.io/pusakaai/db-wrapper:0.1.7 enroll
+
+docker logs -f qlar-db-wrapper
 ```
+
+The logs carry the fingerprint — a detached container has nowhere else to print it —
+followed by `enrolled, waiting for approval in Qlar`. Approve it in the CMS and within a
+few seconds the same log says `approved. Serving queries for ...`. Stopping `docker logs`
+does not stop the wrapper.
+
+`enroll` is safe to re-run: a container that restarts re-uses the enrolment it already has
+rather than trying to redeem a code that was spent the first time. That is why it, and not
+`run`, is the container's command.
 
 The image defaults `WRAPPER_KEY_FILE` and `WRAPPER_STATE_FILE` into `/state`, so mounting
 that directory is what makes the identity survive a container replacement. There is no
@@ -118,8 +123,8 @@ sudo useradd --system --home /opt/qlar-db-wrapper --shell /usr/sbin/nologin qlar
 sudo mkdir -p /opt/qlar-db-wrapper && cd /opt/qlar-db-wrapper
 sudo python3 -m venv venv
 sudo ./venv/bin/pip install --upgrade "qlar-db-wrapper[postgresql] @ \
-  https://github.com/pusakaai/db-wrapper/releases/download/v0.1.6/qlar_db_wrapper-0.1.6-py3-none-any.whl"
-sudo ./venv/bin/qlar-db-wrapper version     # should print 0.1.6
+  https://github.com/pusakaai/db-wrapper/releases/download/v0.1.7/qlar_db_wrapper-0.1.7-py3-none-any.whl"
+sudo ./venv/bin/qlar-db-wrapper version     # should print 0.1.7
 sudo chown -R qlar:qlar /opt/qlar-db-wrapper
 ```
 
@@ -168,6 +173,12 @@ sudo systemctl daemon-reload && sudo systemctl enable --now qlar-db-wrapper
 journalctl -u qlar-db-wrapper -f
 ```
 
+The unit runs `run` rather than `enroll` because enrolling is a one-off that wants a
+terminal to show a fingerprint on: enrol by hand first with
+`qlar-db-wrapper enroll --base-url ... --code ...`, approve it, then Ctrl-C and let systemd
+take over. `run` and `enroll` are the same loop once the machine is enrolled, so either
+works here.
+
 ---
 
 ## Option C — Kubernetes
@@ -190,8 +201,8 @@ spec:
     spec:
       containers:
         - name: wrapper
-          image: ghcr.io/pusakaai/db-wrapper:0.1.6
-          args: ["run"]
+          image: ghcr.io/pusakaai/db-wrapper:0.1.7
+          args: ["enroll"]   # idempotent: an enrolled pod goes straight to serving
           envFrom:
             - secretRef: { name: qlar-db-wrapper-env }
           volumeMounts:
@@ -241,7 +252,7 @@ In the CMS the wrapper should show as online within a few seconds of starting.
 |---|---|---|
 | `enrolment failed: Qlar rejected the enrolment code` | codes are single use and expire after 15 minutes | generate a fresh one in the CMS |
 | `401` on every poll | clock skew beyond ±120 s — by far the most common cause | fix NTP on the host |
-| Stays "pending approval" | nobody approved the fingerprint yet | CMS → wrapper → compare fingerprint → Approve |
+| `enrolled, waiting for approval in Qlar` | nobody approved the fingerprint yet | CMS → wrapper → compare fingerprint → Approve; it then starts on its own |
 | `this wrapper has been revoked` then exits | revoked in the CMS | delete `wrapper-state.json` and enrol again |
 | `configuration error: DB_PROVIDER must be one of …` | typo, or the variable is unset | `postgresql`, `mysql`, `sqlserver`, `oracle` |
 | Asked for the database details on every start | the `.env` it writes is not where the next start reads it — a container without the file mounted, or a different working directory | mount `.env`, or pass `--env-file /path/to/.env` |
