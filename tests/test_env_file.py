@@ -1,4 +1,4 @@
-"""The `.env` file is now written by the wrapper, not only read by it.
+"""The `.env` file is now written by the gateway, not only read by it.
 
 Which makes its round trip a correctness problem rather than a formatting preference: a
 password that survives being asked for but not being read back would leave an operator
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from qlar_db_wrapper.config import load_dotenv, quote_env_value, unquote_env_value, write_env_values
+from qlar_data_gateway.config import load_dotenv, quote_env_value, unquote_env_value, write_env_values
 
 
 def round_trip(value: str) -> str:
@@ -50,7 +50,7 @@ class TestWritingSettings:
         write_env_values(env_file, {"DB_HOST": "db.internal", "DB_PASSWORD": "p@ss word"})
 
         text = env_file.read_text(encoding="utf-8")
-        assert text.startswith("# Qlar DB Wrapper")
+        assert text.startswith("# Qlar Data Gateway")
         assert "DB_HOST=db.internal" in text
         assert 'DB_PASSWORD="p@ss word"' in text
 

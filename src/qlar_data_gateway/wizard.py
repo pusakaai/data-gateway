@@ -1,6 +1,6 @@
 """First-run setup: ask for the database details, write them to `.env`, prove they work.
 
-Installing the wrapper and starting it should be the whole job. Copying `.env.example`,
+Installing the gateway and starting it should be the whole job. Copying `.env.example`,
 remembering which variable names the loader expects, and discovering a typo hours later
 when the first query fails is work that a handful of prompts can do instead.
 
@@ -39,10 +39,10 @@ from .executor import account_can_write, test_connection
 from .masked_input import prompt_for_secret
 from .providers import default_port
 
-# No default. The endpoint differs per Qlar deployment, the CMS wrapper panel prints the
+# No default. The endpoint differs per Qlar deployment, the CMS gateway panel prints the
 # right one, and a plausible-looking guess is worse than a question: it fails at enrolment
 # with a 404 that reads like a rejected code.
-BASE_URL_HINT = "ends in /api/db-wrapper - the CMS wrapper panel shows it"
+BASE_URL_HINT = "ends in /api/data-gateway - the CMS gateway panel shows it"
 
 # Names people actually type, mapped to the four `DB_PROVIDER` values.
 PROVIDER_ALIASES = {
@@ -89,7 +89,7 @@ def run_setup(env_file: Path, *, ask_endpoint: bool = True, reason: str = "") ->
         load_dotenv(env_file)
     except ConfigError as error:
         # An unreadable file has nothing to offer as defaults, but it is not a reason to
-        # refuse to set the wrapper up - that is exactly what the operator is here for.
+        # refuse to set the gateway up - that is exactly what the operator is here for.
         print(f"Ignoring the existing file: {error}", file=sys.stderr)
 
     _banner(env_file, reason)
@@ -123,7 +123,7 @@ def run_setup(env_file: Path, *, ask_endpoint: bool = True, reason: str = "") ->
 
         print(
             f"Leaving the details as saved in {env_file}. "
-            "Fix them there, or run `qlar-db-wrapper run --init` to be asked again.",
+            "Fix them there, or run `qlar-gateway run --init` to be asked again.",
             file=sys.stderr,
         )
         return settings, False
@@ -142,7 +142,7 @@ def ask_enrollment_code() -> str:
     """
     print()
     print("The one-time enrolment code is shown in the Qlar CMS:")
-    print("  your agent > Plugins > SQL Database Reader > Connect via wrapper")
+    print("  your agent > Plugins > SQL Database Reader > Connect via gateway")
     print("It expires 15 minutes after it is generated, and works once.")
 
     while True:
@@ -199,13 +199,13 @@ def check_connection(settings: Settings, *, prominent: bool = False) -> bool:
         console.field("server", version)
 
     # Advisory, never fatal. An operator who deliberately granted more is not blocked, but
-    # nobody should discover months later that the "read-only" wrapper could drop tables.
+    # nobody should discover months later that the "read-only" gateway could drop tables.
     # Given its own block: following a success, a warning set in the same shape as the rest
     # reads as more of the success.
     if account_can_write(database) is True:
         console.warning(
             "This database account appears able to modify data",
-            "The wrapper only ever issues read-only transactions, but a read-only account",
+            "The gateway only ever issues read-only transactions, but a read-only account",
             "is the guarantee that does not depend on our code being right.",
             "",
             "Create one with SELECT and nothing more, then point DB_USER at it:",
@@ -225,7 +225,7 @@ def _banner(env_file: Path, reason: str = "") -> None:
     what makes "why is it asking me again?" answerable), or an env file somewhere other
     than here.
     """
-    console.banner("Setup - a few answers before the wrapper can start")
+    console.banner("Setup - a few answers before the gateway can start")
 
     if env_file.exists():
         console.field("found", _describe_existing(env_file))
@@ -386,7 +386,7 @@ def _ask_secret(label: str, *, keep_label: str | None, number: str = "") -> str 
             return answer
         if keep_label:
             return None
-        _complain("a password is required (the wrapper does not support passwordless login)")
+        _complain("a password is required (the gateway does not support passwordless login)")
 
 
 def _ask_provider(default: str, number: str = "") -> str:

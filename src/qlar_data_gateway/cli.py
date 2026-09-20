@@ -1,10 +1,10 @@
-"""Command line: `qlar-db-wrapper <command>`.
+"""Command line: `qlar-gateway <command>`.
 
 Five commands, in the order an operator meets them:
 
     test-db      check the database credentials before involving Qlar at all
     enroll       register with Qlar and serve — the only command most people need
-    fingerprint  print this wrapper's key fingerprint, to compare with the CMS
+    fingerprint  print this gateway's key fingerprint, to compare with the CMS
     run          serve, for a machine that is already enrolled
     version      what is installed, and which protocol it speaks
 
@@ -55,8 +55,8 @@ SETUP_COMMANDS = ("run", "test-db", "enroll")
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="qlar-db-wrapper",
-        description="On-premise SQL access wrapper for Qlar. Outbound-only: no inbound port is opened.",
+        prog="qlar-gateway",
+        description="On-premise SQL access gateway for Qlar. Outbound-only: no inbound port is opened.",
     )
     parser.add_argument(
         "--env-file", default=DEFAULT_ENV_FILE, help="path to the settings file (default: .env)"
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"qlar-db-wrapper {__version__} (protocol {PROTOCOL_VERSION})",
+        version=f"qlar-gateway {__version__} (protocol {PROTOCOL_VERSION})",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     enroll_parser = _with_init_flag(
         subparsers.add_parser(
             "enroll",
-            help="register this wrapper with Qlar and start serving (the command to use)",
+            help="register this gateway with Qlar and start serving (the command to use)",
         )
     )
     # The two values that come from Qlar rather than from this machine. As arguments they
@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     # `echo KEY=value >> .env` instead.
     enroll_parser.add_argument(
         "--base-url",
-        help="the Qlar API endpoint, as the CMS wrapper panel prints it (saved to .env)",
+        help="the Qlar API endpoint, as the CMS gateway panel prints it (saved to .env)",
     )
     enroll_parser.add_argument(
         "--code",
@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     _with_init_flag(
         subparsers.add_parser("test-db", help="verify the database settings without contacting Qlar")
     )
-    subparsers.add_parser("fingerprint", help="print this wrapper's public key fingerprint")
+    subparsers.add_parser("fingerprint", help="print this gateway's public key fingerprint")
     subparsers.add_parser("version", help="print version and protocol information")
 
     args = parser.parse_args(argv)
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     _configure_logging(args.log_level)
 
     if args.command == "version":
-        print(f"qlar-db-wrapper {__version__}")
+        print(f"qlar-gateway {__version__}")
         print(f"protocol {PROTOCOL_VERSION}")
         return 0
 
@@ -208,14 +208,14 @@ def _command_enroll(
     There used to be a second one. `enroll` printed a fingerprint and exited, and the operator
     was told to come back and type `run` after clicking Approve — a handover across a wait of
     unknown length, in a different window, often on a different day. People missed it, and the
-    wrapper that Qlar showed as approved was simply not running.
+    gateway that Qlar showed as approved was simply not running.
 
     So enrolment now flows straight into the poll loop, which has always tolerated not being
     approved yet and now says so in words. Approving in Qlar is the last thing anyone has to do.
 
     It is also idempotent, which is what makes it safe to be the only command: a machine that is
     already enrolled skips enrolment and goes straight to work. That is what a container restart
-    does, and what an operator restarting a wrapper that died should be able to do without
+    does, and what an operator restarting a gateway that died should be able to do without
     hunting for a code that was single-use and is long gone.
     """
     if code:
@@ -228,9 +228,9 @@ def _command_enroll(
     if state is not None and state.base_url == settings.base_url:
         # Already ours. Enrolling again is not just unnecessary, it is impossible: the code was
         # redeemed once and Qlar keeps only a hash of it.
-        console.banner(f"Qlar DB Wrapper {__version__}")
+        console.banner(f"Qlar Data Gateway {__version__}")
         console.field("endpoint", settings.base_url)
-        console.field("wrapper id", state.wrapper_id)
+        console.field("gateway id", state.gateway_id)
         console.detail("already enrolled; starting")
         return _serve(settings, state, connection_ok)
 
@@ -251,8 +251,8 @@ def _command_enroll(
         print(f"enrolment failed: {error}", file=sys.stderr)
         return 1
 
-    console.banner("Enrolled. One thing left: approve this wrapper in the Qlar CMS.")
-    console.field("wrapper id", state.wrapper_id)
+    console.banner("Enrolled. One thing left: approve this gateway in the Qlar CMS.")
+    console.field("gateway id", state.gateway_id)
     console.field("state file", settings.state_file)
     print()
     console.heading("KEY FINGERPRINT -- compare with the one the CMS shows")
@@ -299,22 +299,22 @@ def _env_file_has(env_file: Path, key: str) -> bool:
 
 
 def _command_run(settings: Settings, connection_ok: bool | None) -> int:
-    console.banner(f"Qlar DB Wrapper {__version__}")
+    console.banner(f"Qlar Data Gateway {__version__}")
     console.field("endpoint", settings.base_url)
 
     state = EnrollmentState.load(settings.state_file)
     if state is None:
         print(
-            f"not enrolled yet (no {settings.state_file}). Run: qlar-db-wrapper enroll",
+            f"not enrolled yet (no {settings.state_file}). Run: qlar-gateway enroll",
             file=sys.stderr,
         )
         return 2
 
-    console.field("wrapper id", state.wrapper_id)
+    console.field("gateway id", state.gateway_id)
 
     if state.base_url != settings.base_url:
         print(
-            f"QLAR_BASE_URL ({settings.base_url}) does not match the URL this wrapper enrolled "
+            f"QLAR_BASE_URL ({settings.base_url}) does not match the URL this gateway enrolled "
             f"against ({state.base_url}). Re-enrol if the Qlar endpoint really changed.",
             file=sys.stderr,
         )
@@ -328,17 +328,17 @@ def _serve(settings: Settings, state: EnrollmentState, connection_ok: bool | Non
 
     Shared by `run` and `enroll`, which differ only in how they got hold of the enrolment.
     """
-    # A wrapper that polls happily while every query fails looks healthy in the CMS, and that
+    # A gateway that polls happily while every query fails looks healthy in the CMS, and that
     # is the most confusing way for an installation to be broken.
     if connection_ok is None:
         connection_ok = check_connection(settings)
     if not connection_ok:
         console.warning(
             "Starting anyway",
-            "The database may simply be down at this moment, and the wrapper reports its",
+            "The database may simply be down at this moment, and the gateway reports its",
             "state to Qlar on every poll, so the CMS shows the data source as unreachable.",
             "",
-            "Run `qlar-db-wrapper run --init` to re-enter the connection details.",
+            "Run `qlar-gateway run --init` to re-enter the connection details.",
             file=sys.stderr,
         )
 
@@ -349,7 +349,7 @@ def _serve(settings: Settings, state: EnrollmentState, connection_ok: bool | Non
     loop = PollLoop(settings, state)
 
     def _handle_signal(signum, _frame):  # noqa: ANN001 - signal handler signature
-        logging.getLogger("qlar_db_wrapper").info("received signal %s, finishing in-flight jobs", signum)
+        logging.getLogger("qlar_data_gateway").info("received signal %s, finishing in-flight jobs", signum)
         loop.stop()
 
     signal.signal(signal.SIGINT, _handle_signal)

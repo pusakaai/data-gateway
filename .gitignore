@@ -13,12 +13,12 @@ venv/
 .coverage
 htmlcov/
 
-# Wrapper runtime state — NEVER commit these
+# Gateway runtime state — NEVER commit these
 .env
 *.env
 !.env.example
-wrapper-key.pem
-wrapper-state.json
+gateway-key.pem
+gateway-state.json
 audit/
 *.log
 

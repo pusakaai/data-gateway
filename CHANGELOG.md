@@ -11,6 +11,44 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-20
+
+**The wrapper is now the Qlar Data Gateway.** "Wrapper" names a thin adapter over a library;
+this is a policy enforcement point that runs inside your network, pulls work outbound, decides
+what SQL may execute and holds the credentials Qlar is deliberately not given. The old name
+said nothing about locality, direction or safety - the three reasons anyone installs it - and
+`db-` locked a generic channel to databases.
+
+Everything below is a rename. No behaviour changed, nothing was added, and nothing was fixed.
+
+### Changed - BREAKING
+
+- **Package, command and image.** Distribution `qlar-db-wrapper` is now `qlar-data-gateway`,
+  the module `qlar_db_wrapper` is `qlar_data_gateway`, the command `qlar-db-wrapper` is
+  `qlar-gateway`, and the image `ghcr.io/pusakaai/db-wrapper` is
+  `ghcr.io/pusakaai/data-gateway`. The repository moved to `pusakaai/data-gateway`; GitHub
+  redirects the old URL, GHCR does not - the old image stays published under the old name.
+- **Configuration.** `WRAPPER_KEY_FILE`, `WRAPPER_STATE_FILE` and `QLAR_WRAPPER_NAME` are now
+  `GATEWAY_KEY_FILE`, `GATEWAY_STATE_FILE` and `QLAR_GATEWAY_NAME`; the files they default to
+  are `gateway-key.pem` and `gateway-state.json`. `QLAR_BASE_URL`, `QLAR_ENROLLMENT_CODE` and
+  every `DB_*` setting are unchanged - but the endpoint `QLAR_BASE_URL` points at ends in
+  `/api/data-gateway`, not `/api/db-wrapper`.
+- **Protocol 2.** The caller's header `X-Qlar-Wrapper-Id` is now `X-Qlar-Gateway-Id`. That is
+  an incompatible change to the wire format, so the protocol version moves to 2 - see
+  [docs/PROTOCOL.md](docs/PROTOCOL.md) section 7. Protocol 1 is withdrawn rather than kept
+  alive: it was never part of a production deployment, and Qlar now refuses it by name, with a
+  message saying to upgrade, instead of accepting an enrolment that would then fail every
+  signed request invisibly.
+- **No compatibility shims.** The old environment variables are not read, the old key file is
+  not picked up, and the old endpoint is not served. A machine that ran 0.1.x therefore
+  generates a fresh key pair, gets a new fingerprint, and must enrol and be approved again.
+
+### Upgrading from 0.1.x
+
+Reinstall as 0.2.0, point `QLAR_BASE_URL` at `/api/data-gateway`, rename the three environment
+variables, enrol with a fresh code and approve the new fingerprint in the CMS. Delete the
+leftover `wrapper-key.pem` and `wrapper-state.json`; they are no longer read by anything.
+
 ## [0.1.7] - 2026-09-20
 
 One command installs a wrapper. `enroll` no longer hands the operator back to a second
@@ -242,10 +280,12 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.6...HEAD
-[0.1.6]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.6
-[0.1.5]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.5
-[0.1.4]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.4
-[0.1.3]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.3
-[0.1.2]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.2
-[0.1.1]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.1
+[Unreleased]: https://github.com/pusakaai/data-gateway/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pusakaai/data-gateway/releases/tag/v0.2.0
+[0.1.7]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.7
+[0.1.6]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.6
+[0.1.5]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.5
+[0.1.4]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.4
+[0.1.3]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.3
+[0.1.2]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.2
+[0.1.1]: https://github.com/pusakaai/data-gateway/releases/tag/v0.1.1

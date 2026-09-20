@@ -1,7 +1,7 @@
-"""The on-premise safety net: what this wrapper will and will not run.
+"""The on-premise safety net: what this gateway will and will not run.
 
 **This module assumes Qlar is hostile.** Qlar already validates the SQL it generates, but
-the whole point of running a wrapper inside the customer's network is that the customer
+the whole point of running a gateway inside the customer's network is that the customer
 should not have to take Qlar's word for it. If Qlar's cloud were compromised tomorrow, the
 blast radius should still be "read the tables the customer approved", not "run arbitrary
 SQL as the database user".
@@ -17,7 +17,7 @@ Three independent layers, in increasing order of strength:
 
 A fourth layer lives outside this module and is the strongest of all: `executor.py` runs
 every statement in a `READ ONLY` transaction, and the documentation tells operators to
-point the wrapper at a read-only database account. Those are enforced by the database
+point the gateway at a read-only database account. Those are enforced by the database
 itself, not by us.
 """
 
@@ -174,7 +174,7 @@ def check(
     try:
         statements = [statement for statement in sqlglot.parse(sql, dialect=dialect) if statement is not None]
     except Exception as error:  # sqlglot raises several unrelated types
-        # Refusing unparseable SQL is a deliberate trade: a query this wrapper cannot
+        # Refusing unparseable SQL is a deliberate trade: a query this gateway cannot
         # understand is a query it cannot vouch for, and "Qlar produced SQL my parser
         # could not read" is a far better failure than running it blind.
         raise SqlRejected(f"statement could not be parsed: {error}") from error
@@ -310,4 +310,4 @@ def _require_allowlisted(tables: set[str], allowlist: frozenset[str]) -> None:
         if schema and bare in allowlist:  # the entry was written unqualified
             continue
 
-        raise SqlRejected(f"table {table} is not in this wrapper's TABLE_ALLOWLIST")
+        raise SqlRejected(f"table {table} is not in this gateway's TABLE_ALLOWLIST")

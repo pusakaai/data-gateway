@@ -29,7 +29,7 @@ class OracleProvider:
         options: dict[str, Any] = dict(settings.options)
         # DB_NAME carries either a service name (the common case) or, with DB_OPT_SID set,
         # a SID. Both spellings exist in the wild and a customer should not have to know
-        # which one this wrapper prefers.
+        # which one this gateway prefers.
         sid = options.pop("sid", None)
         dsn = oracledb.makedsn(
             settings.host,

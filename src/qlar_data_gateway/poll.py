@@ -1,7 +1,7 @@
 """The run loop: ask Qlar for work, do it, send the answer back.
 
-Outbound only. The wrapper opens a long-poll request that Qlar holds for up to ~25 seconds
-and answers either with a job or with `204 No Content`; either way the wrapper immediately
+Outbound only. The gateway opens a long-poll request that Qlar holds for up to ~25 seconds
+and answers either with a job or with `204 No Content`; either way the gateway immediately
 asks again. Nothing listens on a port, nothing needs a certificate, and nothing has to be
 reachable from the internet.
 
@@ -27,7 +27,7 @@ from .config import EnrollmentState, Settings
 from .crypto import load_or_create_private_key, verify_job
 from .executor import execute, test_connection
 
-logger = logging.getLogger("qlar_db_wrapper.poll")
+logger = logging.getLogger("qlar_data_gateway.poll")
 
 POLL_PATH = "/jobs/poll"
 RESULT_PATH = "/jobs/{job_id}/result"
@@ -36,7 +36,7 @@ MIN_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 15.0
 
 # Waiting to be approved is not a failure, so it does not use the error backoff. A human is
-# looking at the screen in Qlar with the fingerprint in front of them; the wrapper should start
+# looking at the screen in Qlar with the fingerprint in front of them; the gateway should start
 # working within a few seconds of the click, not up to fifteen.
 APPROVAL_POLL_SECONDS = 4.0
 
@@ -47,13 +47,13 @@ RESULT_ATTEMPTS = 4
 
 
 class Revoked(Exception):
-    """Qlar says this wrapper is revoked. The loop stops; a human must re-enrol it."""
+    """Qlar says this gateway is revoked. The loop stops; a human must re-enrol it."""
 
 
 class AwaitingApproval(Exception):
     """Enrolled, but no human has confirmed the fingerprint yet. The loop waits, quietly.
 
-    This is the normal state of a wrapper for the minute or two between installing it and
+    This is the normal state of a gateway for the minute or two between installing it and
     someone clicking Approve, and the loop has always survived it — but it used to arrive as a
     nameless `QlarRejected`, logged as `Qlar rejected the poll: HTTP 403: Forbidden` every few
     seconds with the word "approval" nowhere in sight. Operators read that as a failure, killed
@@ -69,7 +69,7 @@ class PollLoop:
         self.client = QlarClient(
             base_url=settings.base_url,
             private_key=private_key,
-            wrapper_id=state.wrapper_id,
+            gateway_id=state.gateway_id,
             verify_tls=settings.verify_tls,
         )
         self.audit = AuditLog(settings.audit_log_file)
@@ -94,8 +94,8 @@ class PollLoop:
         # that makes the first successful poll announce the approval.
         announced_waiting = False
         logger.info(
-            "wrapper %s starting, polling %s (protocol %d, version %s)",
-            self.state.wrapper_id, self.settings.base_url, PROTOCOL_VERSION, __version__,
+            "gateway %s starting, polling %s (protocol %d, version %s)",
+            self.state.gateway_id, self.settings.base_url, PROTOCOL_VERSION, __version__,
         )
 
         while not self._stopping.is_set():
@@ -111,7 +111,7 @@ class PollLoop:
                 backoff = MIN_BACKOFF_SECONDS
                 if announced_waiting:
                     # The click happened. Say so plainly: this is the line that tells the
-                    # operator the wrapper is theirs and working, and that they are done.
+                    # operator the gateway is theirs and working, and that they are done.
                     logger.info("approved. Serving queries for %s", self.settings.base_url)
                     announced_waiting = False
                 if job is not None:
@@ -129,7 +129,7 @@ class PollLoop:
                 self._sleep_with_jitter(APPROVAL_POLL_SECONDS)
             except Revoked:
                 logger.error(
-                    "this wrapper has been revoked in the Qlar CMS; stopping. "
+                    "this gateway has been revoked in the Qlar CMS; stopping. "
                     "Delete %s and enrol again to reconnect.", self.settings.state_file,
                 )
                 break
@@ -143,7 +143,7 @@ class PollLoop:
                 # seconds is not a clue anyone can act on.
                 logger.error(
                     "%s. That is not Qlar's API: check QLAR_BASE_URL (%s), which must end in "
-                    "/api/db-wrapper. Retrying in %.1fs",
+                    "/api/data-gateway. Retrying in %.1fs",
                     wrong_address, self.settings.base_url, backoff,
                 )
                 self._sleep_with_jitter(backoff)
@@ -154,11 +154,11 @@ class PollLoop:
                 backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
 
         self._pool.shutdown(wait=True, cancel_futures=False)
-        logger.info("wrapper stopped")
+        logger.info("gateway stopped")
 
     def _poll_once(self) -> dict[str, Any] | None:
         payload = {
-            "wrapperId": self.state.wrapper_id,
+            "gatewayId": self.state.gateway_id,
             "version": __version__,
             "protocol": PROTOCOL_VERSION,
             "dbStatus": self._db_status,
@@ -197,7 +197,7 @@ class PollLoop:
 
         if int(job.get("protocol", PROTOCOL_VERSION)) > PROTOCOL_VERSION:
             logger.error(
-                "job %s needs protocol %s but this wrapper speaks %d - upgrade the wrapper",
+                "job %s needs protocol %s but this gateway speaks %d - upgrade the gateway",
                 job.get("jobId"), job.get("protocol"), PROTOCOL_VERSION,
             )
             self._send_result(
@@ -207,8 +207,8 @@ class PollLoop:
                     "error": {
                         "category": "rejected",
                         "driverCode": None,
-                        "messageText": f"wrapper speaks protocol {PROTOCOL_VERSION}; job requires "
-                                       f"{job.get('protocol')}. Upgrade the on-premise wrapper.",
+                        "messageText": f"gateway speaks protocol {PROTOCOL_VERSION}; job requires "
+                                       f"{job.get('protocol')}. Upgrade the on-premise gateway.",
                         "hint": None,
                         "position": None,
                     },
@@ -314,7 +314,7 @@ class PollLoop:
             return self._in_flight
 
     def _sleep_with_jitter(self, seconds: float) -> None:
-        # Jitter so that a fleet of wrappers reconnecting after a Qlar deployment does not
+        # Jitter so that a fleet of gateways reconnecting after a Qlar deployment does not
         # arrive as one synchronised wave.
         self._stopping.wait(seconds * (0.7 + random.random() * 0.6))  # noqa: S311
 

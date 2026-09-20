@@ -77,6 +77,6 @@ def _ensure_driver(provider: Provider, package: str, extra: str) -> Provider:
     if importlib.util.find_spec(module) is None:
         raise ImportError(
             f"the {extra} driver is not installed. Install it with: "
-            f"pip install 'qlar-db-wrapper[{extra}]'  (package: {package})"
+            f"pip install 'qlar-data-gateway[{extra}]'  (package: {package})"
         )
     return provider

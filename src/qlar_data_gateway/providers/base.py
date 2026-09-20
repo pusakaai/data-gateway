@@ -29,7 +29,7 @@ class DriverError:
     """A driver failure, described in the terms Qlar's classifier needs.
 
     Attributes:
-        category: the wrapper's best guess — `connection`, `timeout` or `sql_error`. Qlar
+        category: the gateway's best guess — `connection`, `timeout` or `sql_error`. Qlar
             treats it as a hint; `driver_code` is what it actually classifies on.
         driver_code: SQLSTATE for PostgreSQL, the error number for MySQL/SQL Server/Oracle.
             Carried verbatim, as a string, so nothing is lost in translation.
@@ -46,7 +46,7 @@ class DriverError:
 
 
 class Provider(Protocol):
-    """A database this wrapper can read from."""
+    """A database this gateway can read from."""
 
     name: str
 
@@ -56,7 +56,7 @@ class Provider(Protocol):
     def begin_read_only(self, connection: Any, statement_timeout_seconds: int) -> Any:
         """Starts a read-only transaction and arms the statement timeout.
 
-        Returns a cursor ready to execute. The read-only transaction is the wrapper's
+        Returns a cursor ready to execute. The read-only transaction is the gateway's
         strongest guarantee: it is enforced by the database rather than by our parser, so
         it holds even against a statement the guard failed to understand.
         """
@@ -70,7 +70,7 @@ class Provider(Protocol):
     def privilege_check_sql(self) -> str | None:
         """A query that reveals whether the configured account can write.
 
-        Used once at startup to warn an operator who pointed the wrapper at an account
+        Used once at startup to warn an operator who pointed the gateway at an account
         with more rights than it needs. Returning None skips the check.
         """
 

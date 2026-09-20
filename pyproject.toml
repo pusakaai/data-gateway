@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qlar-db-wrapper"
+name = "qlar-data-gateway"
 dynamic = ["version"]
-description = "On-premise SQL access wrapper for Qlar's SQL Database Reader plugin — outbound-only, no inbound ports."
+description = "On-premise SQL access gateway for Qlar's SQL Database Reader plugin — outbound-only, no inbound ports."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
@@ -38,16 +38,16 @@ all = ["psycopg[binary]>=3.1", "PyMySQL>=1.1", "pymssql>=2.3", "oracledb>=2.2"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6"]
 
 [project.scripts]
-qlar-db-wrapper = "qlar_db_wrapper.cli:main"
+qlar-gateway = "qlar_data_gateway.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/pusakaai/db-wrapper"
-Documentation = "https://github.com/pusakaai/db-wrapper/tree/main/docs"
-Changelog = "https://github.com/pusakaai/db-wrapper/blob/main/CHANGELOG.md"
-Issues = "https://github.com/pusakaai/db-wrapper/issues"
+Homepage = "https://github.com/pusakaai/data-gateway"
+Documentation = "https://github.com/pusakaai/data-gateway/tree/main/docs"
+Changelog = "https://github.com/pusakaai/data-gateway/blob/main/CHANGELOG.md"
+Issues = "https://github.com/pusakaai/data-gateway/issues"
 
 [tool.setuptools.dynamic]
-version = { attr = "qlar_db_wrapper.__version__" }
+version = { attr = "qlar_data_gateway.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

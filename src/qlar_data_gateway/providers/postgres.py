@@ -16,7 +16,7 @@ class PostgresProvider:
     def connect(self, settings: DatabaseSettings) -> Any:
         import psycopg
 
-        # `sslmode=require` by default: the wrapper usually sits on the same network as the
+        # `sslmode=require` by default: the gateway usually sits on the same network as the
         # database, but "usually" is not a security model, and the operator can still
         # downgrade it explicitly with DB_OPT_SSLMODE.
         options: dict[str, Any] = {"sslmode": "require"}

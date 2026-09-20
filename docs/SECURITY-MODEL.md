@@ -1,12 +1,12 @@
 # Security model
 
-What this wrapper defends against, how, and — just as important — what it does not
+What this gateway defends against, how, and — just as important — what it does not
 defend against. If you are reviewing this software before letting it into your network,
 this page is written for you.
 
 ## The problem it solves
 
-Without the wrapper, Qlar connects directly to your database over the internet. That
+Without the gateway, Qlar connects directly to your database over the internet. That
 requires two things many organisations will not agree to:
 
 1. **A database port reachable from Qlar's cloud.** Even restricted by IP, the listening
@@ -15,7 +15,7 @@ requires two things many organisations will not agree to:
 2. **Your database credentials stored in Qlar's systems.** They are needed on every query,
    so they live in Qlar's database.
 
-With the wrapper, neither is true. The only connection is outbound, and the credentials
+With the gateway, neither is true. The only connection is outbound, and the credentials
 never leave your `.env`.
 
 ## Trust boundaries
@@ -23,11 +23,11 @@ never leave your `.env`.
 | Party | Trusted with |
 |---|---|
 | **You** | the database credentials, the private key, the allowlist, the audit log |
-| **The wrapper** | executing exactly one read per job, inside your network |
+| **The gateway** | executing exactly one read per job, inside your network |
 | **Qlar** | producing SQL. **Not** trusted to be uncompromised |
 
 The last line is the design premise. Every check below assumes Qlar's cloud could be
-hostile — because if the only protection were Qlar's own validation, running a wrapper
+hostile — because if the only protection were Qlar's own validation, running a gateway
 would buy you nothing over a direct connection.
 
 ## Controls
@@ -42,8 +42,8 @@ would buy you nothing over a direct connection.
 
 ### Identity
 
-- The wrapper generates an ECDSA P-256 key pair **on your machine** at first run. The
-  private key is written mode `0600` and is never transmitted. The wrapper refuses to start
+- The gateway generates an ECDSA P-256 key pair **on your machine** at first run. The
+  private key is written mode `0600` and is never transmitted. The gateway refuses to start
   if that file is group- or world-readable.
 - Every request to Qlar is signed over method, path, timestamp, nonce and a hash of the
   body — so nothing in it can be altered in transit, and a captured request cannot be
@@ -52,7 +52,7 @@ would buy you nothing over a direct connection.
   enrolment. **A proxy inside your own network that terminates TLS cannot inject or rewrite
   SQL.**
 - Enrolment codes are single use, expire in 15 minutes, and are stored hashed. A code alone
-  is not enough: an administrator must approve the key fingerprint, which a thief's wrapper
+  is not enough: an administrator must approve the key fingerprint, which a thief's gateway
   would not match.
 
 ### What may be executed
@@ -95,13 +95,13 @@ under cover of "looking at the schema".
 Stated plainly, because a security control that is oversold is worse than none:
 
 - **Data still leaves your network.** Query *results* go to Qlar and into an AI model —
-  that is the entire purpose. The wrapper closes the network-exposure and
+  that is the entire purpose. The gateway closes the network-exposure and
   credential-storage gaps, not the data-egress one. Columns that must never leave should
   not be in the allowlist.
 - **A compromised Qlar can still read what you allowed.** It could issue queries that are
   legitimate but unwelcome — reading allowed tables more broadly or more often than you
   expected. Your allowlist bounds the damage; your audit log reveals it.
-- **Anyone who can read `wrapper-key.pem` can impersonate this wrapper** to Qlar. File
+- **Anyone who can read `gateway-key.pem` can impersonate this gateway** to Qlar. File
   permissions and host security are yours to maintain.
 - **Anyone who can modify `.env` has your database credentials.** Same boundary as any
   application config on that host.
