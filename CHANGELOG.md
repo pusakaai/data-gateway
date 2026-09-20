@@ -11,6 +11,21 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-20
+
+### Added
+
+- **`enroll --base-url ... --code ...`.** The two values that come from Qlar rather than
+  from the machine the wrapper runs on now travel as arguments, which means the CMS can
+  print one line to copy. It reads the same in bash, cmd and PowerShell, because neither
+  value contains a space and so nothing needs quoting — which is precisely what went wrong
+  when they travelled through `echo KEY=value >> .env` instead.
+
+  The endpoint is written to `.env` so later starts have it; the code is not, because it is
+  single use and spent. Omit either and the prompts ask for it as before.
+
+  The database is still asked for. It is the one thing nothing on this path can know.
+
 ## [0.1.4] - 2026-09-20
 
 ### Changed
@@ -152,7 +167,8 @@ Protocol version 1.
 - `test-db`, `enroll`, `fingerprint`, `run` and `version` commands, a Docker image, and
   systemd/Kubernetes deployment guides.
 
-[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/pusakaai/db-wrapper/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.5
 [0.1.4]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.4
 [0.1.3]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.3
 [0.1.2]: https://github.com/pusakaai/db-wrapper/releases/tag/v0.1.2

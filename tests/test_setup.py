@@ -415,3 +415,115 @@ class TestTheEnrolmentCode:
 
         assert cli.main(["--env-file", str(env_file), "enroll"]) == 1
         assert "QLAR_ENROLLMENT_CODE is not set" in capsys.readouterr().err
+
+
+class TestEnrollingInOneLine:
+    """`enroll --base-url ... --code ...`: the two values Qlar knows, as arguments.
+
+    They have to cross from a browser to a terminal somehow. Through `.env` they cross a
+    shell, which quotes and encodes differently on every platform and broke two installs.
+    Through a prompt they cross a clipboard twice. As arguments they are one copy-paste
+    line that reads the same in bash, cmd and PowerShell — neither value contains a space,
+    so there is nothing to quote.
+    """
+
+    ENDPOINT = "https://qlar.example.com/api/db-wrapper"
+
+    def _database_only(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "DB_PROVIDER=postgresql",
+                    "DB_HOST=db.internal",
+                    "DB_PORT=5432",
+                    "DB_NAME=warehouse",
+                    "DB_USER=qlar_readonly",
+                    "DB_PASSWORD=secret",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return env_file
+
+    def _capture(self, monkeypatch):
+        seen = {}
+
+        def fake_enroll(settings):
+            seen["base_url"] = settings.base_url
+            seen["code"] = settings.enrollment_code
+            raise cli.EnrollmentError("stopping here; the arguments are what this tests")
+
+        monkeypatch.setattr(cli, "enroll", fake_enroll)
+        return seen
+
+    def test_both_values_reach_enrolment_without_a_prompt(self, tmp_path, monkeypatch):
+        env_file = self._database_only(tmp_path)
+        seen = self._capture(monkeypatch)
+
+        def refuse(_prompt: str = "") -> str:
+            raise AssertionError("nothing should be asked when both values were given")
+
+        monkeypatch.setattr("builtins.input", refuse)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(
+            [
+                "--env-file", str(env_file), "enroll",
+                "--base-url", self.ENDPOINT,
+                "--code", "86lp-6z8g-xw4q",
+            ]
+        )
+
+        assert seen["base_url"] == self.ENDPOINT
+        assert seen["code"] == "86LP-6Z8G-XW4Q", "upper-cased, as the CMS generates it"
+
+    def test_a_trailing_slash_does_not_reach_the_signed_paths(self, tmp_path, monkeypatch):
+        env_file = self._database_only(tmp_path)
+        seen = self._capture(monkeypatch)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(
+            ["--env-file", str(env_file), "enroll", "--base-url", self.ENDPOINT + "/", "--code", "X"]
+        )
+
+        assert seen["base_url"] == self.ENDPOINT
+
+    def test_the_endpoint_is_saved_so_the_next_run_does_not_ask(self, tmp_path, monkeypatch):
+        env_file = self._database_only(tmp_path)
+        self._capture(monkeypatch)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(["--env-file", str(env_file), "enroll", "--base-url", self.ENDPOINT, "--code", "X"])
+
+        assert f"QLAR_BASE_URL={self.ENDPOINT}" in env_file.read_text(encoding="utf-8")
+
+    def test_the_code_is_not_saved(self, tmp_path, monkeypatch):
+        # Single use, and spent the moment enrolment succeeds. Keeping it would leave a dead
+        # credential in a file that also holds the database password.
+        env_file = self._database_only(tmp_path)
+        self._capture(monkeypatch)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(
+            ["--env-file", str(env_file), "enroll", "--base-url", self.ENDPOINT, "--code", "SECRET-CODE"]
+        )
+
+        assert "SECRET-CODE" not in env_file.read_text(encoding="utf-8")
+
+    def test_the_database_is_still_asked_for_when_it_is_unknown(self, tmp_path, monkeypatch):
+        # The endpoint and the code come from Qlar; the database does not, and nothing on
+        # this path can know it.
+        env_file = tmp_path / ".env"
+        seen = self._capture(monkeypatch)
+        console = Console("", "db.internal", "", "warehouse", "reader", "pw").install(monkeypatch)
+        monkeypatch.setattr(cli, "can_prompt", lambda: True)
+
+        cli.main(["--env-file", str(env_file), "enroll", "--base-url", self.ENDPOINT, "--code", "X"])
+
+        assert seen["base_url"] == self.ENDPOINT
+        # Every scripted answer was used, and none of them was an endpoint: the Qlar
+        # question is skipped when the answer arrived on the command line.
+        assert console.answers == []
+        assert not any("endpoint" in prompt.lower() for prompt in console.prompts)

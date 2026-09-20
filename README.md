@@ -61,15 +61,15 @@ of the allowlist.
 Docker (recommended — no Python on the host):
 
 ```bash
-docker pull ghcr.io/pusakaai/db-wrapper:0.1.4
+docker pull ghcr.io/pusakaai/db-wrapper:0.1.5
 ```
 
 Or with pip, installing only the driver you need. The wheel comes from the release rather
 than from PyPI, where this package is not published:
 
 ```bash
-pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.4/qlar_db_wrapper-0.1.4-py3-none-any.whl"
-qlar-db-wrapper version     # should print 0.1.4
+pip install --upgrade "qlar-db-wrapper[postgresql] @ https://github.com/pusakaai/db-wrapper/releases/download/v0.1.5/qlar_db_wrapper-0.1.5-py3-none-any.whl"
+qlar-db-wrapper version     # should print 0.1.5
 ```
 
 Swap `postgresql` for `mysql`, `sqlserver`, `oracle` or `all`.
@@ -129,12 +129,18 @@ setting is the same configuration error on stderr it has always been.
 Reader → *Connect via wrapper*. Put it in `.env` as `QLAR_ENROLLMENT_CODE` (it expires in
 15 minutes and works once).
 
-**3. Enrol.** This generates your key pair — the private key is written to
-`wrapper-key.pem` with mode `0600` and never leaves the machine.
+**3. Enrol.** The CMS panel prints this line with both values already in it. This
+generates your key pair — the private key is written to `wrapper-key.pem` with mode `0600`
+and never leaves the machine.
 
 ```bash
-qlar-db-wrapper enroll
+qlar-db-wrapper enroll --base-url https://your-qlar-host/api/db-wrapper --code K7P4-9WQX-2MTD
 ```
+
+Neither value contains a space, so that line is the same in bash, cmd and PowerShell. The
+endpoint is saved to `.env` for later starts; the code is not, because it is spent. Leave
+either one out and you are asked for it instead — `qlar-db-wrapper enroll` on its own still
+works.
 
 It prints a fingerprint:
 
@@ -158,7 +164,7 @@ Docker equivalent:
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.4 run
+  ghcr.io/pusakaai/db-wrapper:0.1.5 run
 ```
 
 Back in the CMS the wrapper shows as online, and you continue with table detection as

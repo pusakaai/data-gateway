@@ -74,7 +74,7 @@ def can_prompt() -> bool:
         return False
 
 
-def run_setup(env_file: Path) -> tuple[Settings, bool]:
+def run_setup(env_file: Path, *, ask_endpoint: bool = True) -> tuple[Settings, bool]:
     """Asks for the database details, saves them, and tests them.
 
     Returns the settings and whether the test query succeeded. A failed test is not fatal:
@@ -94,7 +94,7 @@ def run_setup(env_file: Path) -> tuple[Settings, bool]:
     _banner(env_file)
 
     while True:
-        answers = _collect_answers()
+        answers = _collect_answers(ask_endpoint=ask_endpoint)
         backup = write_env_values(env_file, answers)
         if backup is not None:
             print(f"\nThe previous {env_file} could not be read; it is kept as {backup}.")
@@ -238,8 +238,12 @@ def _describe_existing(env_file: Path) -> str:
     return "Read from it: " + ", ".join(recognised)
 
 
-def _collect_answers() -> dict[str, str]:
-    """The questions themselves, in the order someone reads them off a connection string."""
+def _collect_answers(*, ask_endpoint: bool = True) -> dict[str, str]:
+    """The questions themselves, in the order someone reads them off a connection string.
+
+    `ask_endpoint` is False when the endpoint arrived on the command line: asking for an
+    answer that was just supplied is how a tool teaches people to stop reading its prompts.
+    """
     print("Database")
 
     provider = _ask_provider(_current("DB_PROVIDER").lower() or SUPPORTED_PROVIDERS[0])
@@ -262,8 +266,12 @@ def _collect_answers() -> dict[str, str]:
 
     print()
     print("Qlar")
-    print(f"  ({BASE_URL_HINT})")
-    base_url = _ask("  Qlar API endpoint", _current("QLAR_BASE_URL") or None).rstrip("/")
+    if ask_endpoint:
+        print(f"  ({BASE_URL_HINT})")
+        base_url = _ask("  Qlar API endpoint", _current("QLAR_BASE_URL") or None).rstrip("/")
+    else:
+        base_url = _current("QLAR_BASE_URL").rstrip("/")
+        print(f"  API endpoint, from the command line: {base_url}")
 
     return {
         "QLAR_BASE_URL": base_url,

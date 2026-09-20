@@ -27,7 +27,15 @@ from dataclasses import replace
 from pathlib import Path
 
 from . import PROTOCOL_VERSION, __version__
-from .config import ConfigError, EnrollmentState, Settings, load_settings
+from .config import (
+    ConfigError,
+    EnrollmentState,
+    Settings,
+    load_dotenv,
+    load_settings,
+    read_env_text,
+    write_env_values,
+)
 from .crypto import fingerprint, load_or_create_private_key, public_key_pem
 from .enroll import EnrollmentError, enroll
 from .poll import PollLoop
@@ -58,8 +66,20 @@ def main(argv: list[str] | None = None) -> int:
     _with_init_flag(
         subparsers.add_parser("run", help="poll Qlar for jobs and execute them (the main process)")
     )
-    _with_init_flag(
+    enroll_parser = _with_init_flag(
         subparsers.add_parser("enroll", help="register this wrapper with Qlar using a one-time code")
+    )
+    # The two values that come from Qlar rather than from this machine. As arguments they
+    # travel in one copy-paste line, identical in every shell - neither contains a space, so
+    # nothing needs quoting, which is exactly what went wrong when they travelled through
+    # `echo KEY=value >> .env` instead.
+    enroll_parser.add_argument(
+        "--base-url",
+        help="the Qlar API endpoint, as the CMS wrapper panel prints it (saved to .env)",
+    )
+    enroll_parser.add_argument(
+        "--code",
+        help="the one-time enrolment code from the CMS (single use; not saved)",
     )
     _with_init_flag(
         subparsers.add_parser("test-db", help="verify the database settings without contacting Qlar")
@@ -84,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "fingerprint":
         return _command_fingerprint(settings)
     if args.command == "enroll":
-        return _command_enroll(settings)
+        return _command_enroll(settings, Path(args.env_file), getattr(args, "code", None))
     if args.command == "run":
         return _command_run(settings, connection_ok)
 
@@ -110,6 +130,12 @@ def _settings_for(args: argparse.Namespace) -> tuple[Settings | None, bool | Non
     """
     env_file = Path(args.env_file)
 
+    # An endpoint given on the command line is the answer to a question the prompts would
+    # otherwise ask, so it is applied before anything reads the environment.
+    base_url = (getattr(args, "base_url", None) or "").strip().rstrip("/")
+    if base_url:
+        os.environ["QLAR_BASE_URL"] = base_url
+
     if getattr(args, "init", False):
         if not can_prompt():
             print(
@@ -118,7 +144,7 @@ def _settings_for(args: argparse.Namespace) -> tuple[Settings | None, bool | Non
                 file=sys.stderr,
             )
             return None, None
-        return _run_setup(env_file)
+        return _run_setup(env_file, ask_endpoint=not base_url)
 
     try:
         return load_settings(env_file), None
@@ -130,12 +156,12 @@ def _settings_for(args: argparse.Namespace) -> tuple[Settings | None, bool | Non
         # First run, most likely: no .env at all, or one that was never filled in. Ask
         # rather than explain, since everything the explanation would say is a question.
         print(f"This wrapper is not configured yet ({error}).")
-        return _run_setup(env_file)
+        return _run_setup(env_file, ask_endpoint=not base_url)
 
 
-def _run_setup(env_file: Path) -> tuple[Settings | None, bool | None]:
+def _run_setup(env_file: Path, *, ask_endpoint: bool = True) -> tuple[Settings | None, bool | None]:
     try:
-        return run_setup(env_file)
+        return run_setup(env_file, ask_endpoint=ask_endpoint)
     except SetupAborted as error:
         print(f"setup cancelled: {error}", file=sys.stderr)
         return None, None
@@ -158,7 +184,13 @@ def _command_fingerprint(settings: Settings) -> int:
     return 0
 
 
-def _command_enroll(settings: Settings) -> int:
+def _command_enroll(settings: Settings, env_file: Path, code: str | None = None) -> int:
+    if code:
+        settings = replace(settings, enrollment_code=code.strip().strip("\"'").upper())
+
+    # Whatever route the endpoint arrived by, the next `run` reads it from the file.
+    _remember_base_url(settings, env_file)
+
     # The code was the one answer the setup prompts did not cover, so it had to be typed
     # into `.env` by hand - and the instructions for doing that are shell-specific in a way
     # that bites on Windows, where `echo 'KEY=value'` writes the quotes into the file. A
@@ -185,6 +217,38 @@ def _command_enroll(settings: Settings) -> int:
     print("Open the Qlar CMS, check that the fingerprint shown there matches the line above,")
     print("and approve this wrapper. Then start it with:  qlar-db-wrapper run")
     return 0
+
+
+def _remember_base_url(settings: Settings, env_file: Path) -> None:
+    """Writes QLAR_BASE_URL to the env file when it is not already there.
+
+    `--base-url` is given once, at enrolment, but every later `run` needs it. Leaving it in
+    the environment of a process that is about to exit would mean the next start asks for
+    an endpoint the operator has already supplied - which is the complaint this whole path
+    exists to answer.
+    """
+    try:
+        load_dotenv(env_file)
+    except ConfigError:
+        return  # unreadable file: the setup prompts deal with it, not this
+
+    if os.environ.get("QLAR_BASE_URL") == settings.base_url and _env_file_has(env_file, "QLAR_BASE_URL"):
+        return
+
+    write_env_values(env_file, {"QLAR_BASE_URL": settings.base_url})
+
+
+def _env_file_has(env_file: Path, key: str) -> bool:
+    if not env_file.exists():
+        return False
+    try:
+        return any(
+            line.partition("=")[0].strip() == key
+            for raw in read_env_text(env_file).splitlines()
+            if (line := raw.strip()) and not line.startswith("#") and "=" in line
+        )
+    except ConfigError:
+        return False
 
 
 def _command_run(settings: Settings, connection_ok: bool | None) -> int:
