@@ -30,7 +30,9 @@ from .config import (
     Settings,
     load_dotenv,
     load_settings,
+    read_env_text,
     unquote_env_value,
+    unwrap_quoted_line,
     write_env_values,
 )
 from .executor import account_can_write, test_connection
@@ -202,9 +204,38 @@ def _banner(env_file: Path) -> None:
     print("=" * 72)
     print(" Qlar DB Wrapper — setup")
     print("=" * 72)
-    print(f"Answer a few questions and they will be saved to {env_file}.")
+    print(f"Answer a few questions and they will be saved to {env_file.resolve()}.")
+    print(f"  {_describe_existing(env_file)}")
     print("Press Enter to accept the value in [brackets]. Ctrl-C cancels.")
     print()
+
+
+def _describe_existing(env_file: Path) -> str:
+    """Says what was read from the file, by key name, before asking for it again.
+
+    Being asked for something that is already written down is infuriating, and the reason
+    is never visible: the file is in another directory, or the shell that wrote it used an
+    encoding this cannot read, or the line is subtly not a setting. Naming the keys that
+    were understood answers all three at a glance — and names only, never values, because
+    one of them is a database password.
+    """
+    if not env_file.exists():
+        return "No file there yet, so nothing is filled in for you."
+
+    try:
+        recognised = [
+            line.partition("=")[0].strip()
+            for raw in read_env_text(env_file).splitlines()
+            if (line := unwrap_quoted_line(raw.strip()))
+            and not line.startswith("#")
+            and "=" in line
+        ]
+    except ConfigError as error:
+        return f"That file cannot be read: {error}"
+
+    if not recognised:
+        return "That file has no settings in it, so nothing is filled in for you."
+    return "Read from it: " + ", ".join(recognised)
 
 
 def _collect_answers() -> dict[str, str]:

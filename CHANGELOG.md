@@ -11,6 +11,14 @@ does not change the protocol version.
 
 ## [Unreleased]
 
+### Added
+
+- **The setup prompts say what they read from the file**, by key name, before asking for
+  anything. Being asked for a setting that is already written down is infuriating, and the
+  three reasons it happens — the file is in another directory, its encoding cannot be read,
+  or the line is not a setting — look identical from the outside. Names only, never values:
+  one of those keys is a database password.
+
 ## [0.1.2] - 2026-09-20
 
 Everything here came from one operator installing the wrapper on Windows and following the
