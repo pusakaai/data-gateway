@@ -61,7 +61,7 @@ of the allowlist.
 Docker (recommended — no Python on the host):
 
 ```bash
-docker pull ghcr.io/pusakaai/db-wrapper:0.1.0
+docker pull ghcr.io/pusakaai/db-wrapper:0.1.1
 ```
 
 Or with pip, installing only the driver you need:
@@ -149,7 +149,7 @@ Docker equivalent:
 ```bash
 docker run -d --name qlar-db-wrapper --restart unless-stopped \
   --env-file .env -v "$PWD/state:/state" \
-  ghcr.io/pusakaai/db-wrapper:0.1.0 run
+  ghcr.io/pusakaai/db-wrapper:0.1.1 run
 ```
 
 Back in the CMS the wrapper shows as online, and you continue with table detection as
