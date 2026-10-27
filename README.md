@@ -1,5 +1,8 @@
 # Qlar Data Gateway
 
+> [!IMPORTANT]
+> **This repository has moved to [qlar-ai/qlar-data-gateway](https://github.com/qlar-ai/qlar-data-gateway) and is archived.** New releases, the Docker image `ghcr.io/qlar-ai/qlar-data-gateway` and the docs live there. Use 0.2.2 or later; the images under `ghcr.io/pusakaai/` are no longer published.
+
 Let Qlar answer questions about your database **without opening a database port to the
 internet, and without giving Qlar your database password.**
 
